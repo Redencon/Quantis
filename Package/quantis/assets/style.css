@@ -1,0 +1,149 @@
+@charset "UTF-8";
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url(fonts/Montserrat-VariableFont_wght.ttf) format('truetype-variations');
+    font-weight: 100 900;
+    font-style: normal;
+}
+
+
+:root {
+    --color-primary: #06826a;
+    --color-secondary: #3a1771;
+    --color-primary-light: #24c1a4;
+    --color-secondary-light: #4b44c5;
+    --color-warning: #914519;
+    --color-background: #f5f5f5;
+    --color-text: #000;
+    --color-text-light: #eee;
+    --color-text-grey: #666;
+    --font: 'Montserrat', sans-serif;
+    --font-size: 16px;
+    --main-gradient: linear-gradient(80deg, var(--color-primary), var(--color-secondary));
+
+    --large-font: 1.5rem;
+    --x-large-font: 2rem;
+    --xx-large-font: 2.5rem;
+    --small-font: 0.8rem;
+    --x-small-font: 0.6rem;
+}
+
+body {
+    font-family: var(--font);
+    background-color: var(--color-background);
+    font-size: var(--font-size);
+}
+
+header {
+    font-weight: 800;
+    font-size: var(--xx-large-font);
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0.7em;
+    color: var(--color-text-light);
+    text-align: center;
+}
+
+.header-fullwidth {
+    width: 100%;
+    background-image: var(--main-gradient);
+    padding: 0;
+    margin-bottom: 1.2em;
+}
+
+h2 {
+    font-size: var(--large-font);
+    font-weight: 600;
+    color: var(--color-secondary);
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+h3 {
+    font-weight: 600;
+    color: var(--color-secondary-light);
+    margin-top: 0.3rem;
+    margin-bottom: 0.3rem;
+}
+
+.container {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 900px;
+}
+
+@media (max-width: 1000px) {
+    .container{
+        margin-left: 5%;
+        margin-right: 5%;
+    }
+}
+
+.group-title{
+    width: 100%;
+    margin: 0.2em;
+    margin: 0;
+    border: 0px;
+    border-radius: 0.2em;
+    background-color: var(--color-background);
+    color: var(--color-secondary);
+    font-weight: 600;
+    font-size: var(--font-size);
+}
+
+.dash-uploader-label {
+    font-size: var(--large-font);
+    font-weight: 900;
+    color: var(--color-text-grey);
+}
+
+.dash-spreadsheet {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+button {
+    background-color: var(--color-primary);
+    border: none;
+    border-radius: 1em;
+    color: var(--color-text-light);
+    padding: 0.8em;
+    font-weight: 600;
+    margin-left: 0.2em;
+    margin-right: 0.2em;
+    width: 100%;
+    transition: background-color 0.25s ease-in-out;
+}
+
+button.rm_button:hover {
+    background-color: var(--color-warning);
+}
+
+summary {
+    font-size: var(--large-font);
+    font-weight: 600;
+    color: var(--color-secondary);
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+details {
+    margin-top: 1.2rem;
+    margin-bottom: 1.2rem;
+}
+
+.daq-colorpicker--light {
+    margin: auto;
+}
+
+button.start_button {
+    background-color: var(--color-secondary);
+    font-size: var(--large-font);
+
+    transition: background-color 0.2s ease-in-out;
+}
+
+button.start_button:hover {
+    background-color: var(--color-primary);
+}
