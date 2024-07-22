@@ -168,3 +168,41 @@ button.upload_button {
     padding: 0.5em;
     margin: 0.2em;
 }
+
+button.previous-page, button.next-page, button.first-page, button.last-page {
+    width: 2em;
+    &:hover{
+        color: var(--color-text-light) !important;
+
+        &:disabled{
+            color: var(--color-text-light) !important
+        }
+    };
+
+    &:disabled{
+        background-color: var(--color-text-grey) !important;
+    }
+}
+
+.dash-spreadsheet-container .dash-spreadsheet-inner table {
+    --accent: var(--color-secondary-light) !important;
+}
+
+
+.previous-next-container {
+    display: flex;
+    justify-content: right;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    width: 100%;
+    height: 1.7em;
+}
+
+.page-number {
+    width: auto;
+    white-space: nowrap;
+}
+
+.Select-menu-outer {
+    color: var(--color-text);
+}

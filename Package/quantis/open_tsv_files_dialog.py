@@ -1,7 +1,7 @@
 import webview
 
 def open_tsv_files_dialog(window: webview.Window, multiple: bool = False):
-    file_types = ('TSV Files (*.tsv)',)
+    file_types = ('TSV Files (*.tsv;*.txt)',)
 
     result = window.create_file_dialog(
         webview.OPEN_DIALOG, allow_multiple=multiple, file_types=file_types

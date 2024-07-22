@@ -1,4 +1,4 @@
-from . import log_setup
+# from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
 import dash_uploader as du
 from dash_daq.ColorPicker import ColorPicker
@@ -9,8 +9,10 @@ import numpy as np
 from scipy.stats import ttest_ind, iqr
 from statsmodels.stats.multitest import multipletests
 import atexit
+import re
 
 import webview
+import webbrowser
 
 from .knn_imputation import knn_impute
 from .ncbi_species_parser import fetch_species_name
@@ -53,13 +55,36 @@ app.layout = html.Div([
         html.Div([
             html.P("Input file format: ", style={'marginRight': '0.5em'}),
             dcc.Dropdown(
-                id="input_format", options=["Scavager", "MaxQuant", "DirectMS1Quant"], value="Scavager",
+                id="input_format", options=[
+                    {"label": "Scavager", "value": "Scavager"},
+                    {"label": "MaxQuant", "value": "MaxQuant"},
+                    {"label": "DirectMS1Quant", "value": "DirectMS1Quant"},
+                ], value="Scavager",
                 clearable=False, style={'width': '13em'}
             ),
         ], style={'display': 'flex', 'flex-direction': 'row', 'width': '100%'}),
         html.Div([
             html.Button("Upload score file", id='single_input_btn', className="upload_button"),
             dcc.Input(id="single_file_path", value="", placeholder="No file selected", disabled=True, className="path_input"),
+            html.Div(dash_table.DataTable(
+                id="column_DT",
+                columns=[
+                    {'id': 'col', 'name': 'Label', 'editable': False},
+                    {'id': 'kan', 'name': 'Group', 'presentation': 'dropdown'}
+                ],
+                editable=True,
+                dropdown={
+                    'kan': {'options':[
+                        {'label': 'None', 'value': 'N'},
+                        {'label': 'Control', 'value': 'K'},
+                        {'label': 'Test', 'value': 'A'},
+                    ], 'clearable': False}
+                },
+                page_size=10,
+                page_action='native',
+                page_current=0,
+                cell_selectable=False
+            ), style={'display': 'hidden'}, id="maxquant_table_div")
         ], style={"diplay": "hidden"}, id="single_input_div"),
         html.Div([
             html.Div([
@@ -213,10 +238,23 @@ app.layout = html.Div([
                 {"name": "Fold Change", "id": "FC"},
                 {"name": "p-value", "id": "logFDR"},
             ],
-            style_cell_conditional=[{
-                'if': {'column_id': 'dbname'},
-                'textAlign': 'left'
-            }]
+            style_cell_conditional=[
+                {
+                    'if': {'column_id': 'dbname'},
+                    'textAlign': 'left'
+                },
+                {
+                    'if': {'filter_query': '{FC} > 0', 'column_id': 'FC'},
+                    'backgroundColor': '#24c1a4',
+                },
+                {
+                    'if': {'filter_query': '{FC} < 0', 'column_id': 'FC'},
+                    'backgroundColor': '#c12424',
+                },
+            ],
+            style_cell={
+                'overflow': 'hidden', 'textOverflow': 'ellipsis','maxWidth': 0,
+            }
         ),
     ])
 ])
@@ -229,27 +267,61 @@ window = webview.create_window(app.title, app.server, width=1200, height=800)  #
 @callback(
     Output("single_input_div", "style"),
     Output("multi_input_div", "style"),
+    Output("maxquant_table_div", "style"),
     Input("input_format", "value")
 )
 def hide_show_divs(value):
     if value == "Scavager":
-        return {"display": "none"}, {"display": "grid"}
+        return {"display": "none"}, {"display": "grid"}, {"display": "none"}
+    elif value == "MaxQuant":
+        return {"display": "grid"}, {"display": "none"}, {"display": "grid"}
+    elif value == "DirectMS1Quant":
+        return {"display": "grid"}, {"display": "none"}, {"display": "none"}
     else:
-        return {"display": "grid"}, {"display": "none"}
+        raise ValueError("File type `{}` is not supported".format(value))
+
+
+# Fill Column table with ibaq labels on table input
+@callback(
+    Output("column_DT", "data"),
+    Input("single_file_path", "value"),
+    State("input_format", "value"),
+)
+def fill_col_table(path: str, input_format: str):
+    if input_format != "MaxQuant":
+        return no_update
+    if not path:
+        return no_update
+    with open(path) as f:
+        fline = f.readline()
+    cols = fline.split("\t")
+    iBAQ_cols = [col for col in cols if "iBAQ" in col and col != "iBAQ"]
+    labels = [col.split(" ")[1] for col in iBAQ_cols]
+    return [{"col": col, "kan": "N"} for col in labels]
 
 
 # Disable threshold type and sliders for DirectMS1Quant
 @callback(
     Output("threshold_calculation", "disabled"),
     Output("threshold_calculation", "value"),
-    Output("imputation", "disabled"),
     Input("input_format", "value")
 )
 def disable_threshold(value):
     if value == "DirectMS1Quant":
-        return True, "ms1", True
+        return True, "ms1"
     else:
-        return False, "static", False
+        return False, "static"
+
+# Disable imputation for DirectMS1Quant (and MaxQuant -- restored)
+@callback(
+    Output("imputation", "disabled"),
+    Input("input_format", "value")
+)
+def disable_imputation(value):
+    if value == "DirectMS1Quant":
+        return True
+    else:
+        return False
 
 
 # Add files to tables
@@ -494,6 +566,7 @@ NULL_PLOT = {
     State("control_files_table", "data"),
     State("test_files_table", "data"),
     State("single_file_path", "value"),
+    State("column_DT", "data"),
     State("imputation", "value"),
     State("species", "value"),
     State("custom_species", "value"),
@@ -508,6 +581,7 @@ def run_quantis(
     regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
+    column_DT,
     imputation, species, custom_species,
     up_color, down_color, not_color,
     input_format
@@ -530,28 +604,49 @@ def run_quantis(
         down_threshold = data[data["FC_pass"] & (data["FC"] < 0)]["FC"].max()
         p_limit = data[data["BH_pass"]]["logFDR"].min()
     else:
-        # Check if files are provided
-        if not control_files or not test_files:
-            return NULL_PLOT, no_update, no_update
+        if input_format == "MaxQuant":  # adjust for MaxQuant
+            # Check if file is provided
+            if not single_file:
+                return NULL_PLOT, no_update, no_update
 
-        # Turn files into lists
-        cfl = [FILES_PATH / f["path"] for f in control_files]
-        tfl = [FILES_PATH / f["path"] for f in test_files]
-        # Hash parameters
-        _hash = hash_parameters(cfl, tfl, imputation, input_format)
+            # Get K and A columns
+            K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
+            A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
+            NSAF_cols = K_cols + A_cols
 
-        # Check if data is already present
+            _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
+        else:
+            # Check if files are provided
+            if not control_files or not test_files:
+                return NULL_PLOT, no_update, no_update
+
+            # Turn files into lists
+            cfl = [FILES_PATH / f["path"] for f in control_files]
+            tfl = [FILES_PATH / f["path"] for f in test_files]
+            # Hash parameters
+            _hash = hash_parameters(cfl, tfl, imputation, input_format)
+
+            # Check if data is already present
         data = check_existing_data(_hash, str(CACHE_PATH))
 
         if data is None:
             # Fetch new data
             if input_format == "Scavager":
                 data = load_from_lists(cfl, tfl)
+                NSAF_cols = [col for col in data.columns if "NSAF" in col]
+            
+                # Calculate fold change and p-values
+                K_cols = [col for col in data.columns if col.startswith("NSAF_K")]
+                A_cols = [col for col in data.columns if col.startswith("NSAF_A")]
             elif input_format == "MaxQuant":
-                data = load_from_lists_mq(cfl, tfl)
+                # Load data
+                data = pd.read_csv(single_file, sep="\t")
+                data = data[["Protein IDs"] + K_cols + A_cols]
+                data.rename(columns={"Protein IDs": "dbname"}, inplace=True)
+                data.replace(0, np.nan, inplace=True)
             else:
-                raise ValueError("Unsupported input file format: {}".format(input_format))
-            NSAF_cols = [col for col in data.columns if "NSAF" in col]
+                raise ValueError()
+
             if imputation == "Drop":
                 data = data.dropna()
             elif imputation == "Min":
@@ -562,10 +657,8 @@ def run_quantis(
                 data_NSAF = data.set_index('dbname')[NSAF_cols]
                 data_NSAF = knn_impute(data_NSAF)
                 data = data_NSAF.reset_index().merge(data[['dbname', 'description']], on='dbname', how='left')
-        
-            # Calculate fold change and p-values
-            K_cols = [col for col in data.columns if col.startswith("NSAF_K")]
-            A_cols = [col for col in data.columns if col.startswith("NSAF_A")]
+    
+            # Common end for Scavager and MaxQuant data
             data['FC'] = np.log2(data[A_cols].mean(axis=1) / data[K_cols].mean(axis=1))
             data['p-value'] =  data.apply(
                 lambda row: ttest_ind(
@@ -573,10 +666,10 @@ def run_quantis(
                     [row[column] for column in A_cols]
                 ).pvalue,  # type: ignore
                 axis=1
-            )
-            # data['logp'] = -np.log10(data['p-value'])
-            # data['logFC'] = np.log2(data['FC'])
-        
+                )
+                # data['logp'] = -np.log10(data['p-value'])
+                # data['logFC'] = np.log2(data['FC'])
+            
             # Save data
             save_data(data, _hash, str(CACHE_PATH))
 
@@ -634,7 +727,7 @@ def run_quantis(
         data, x='FC', y='logFDR', color='regulation',
         labels={'regulation': 'Regulation', 'FC': 'Fold Change', 'logFDR': '-log10(FDR)'},
         color_discrete_map=colors, height=750, title='Volcano Plot', opacity=0.8,
-        range_x=[-fc_max*1.1, fc_max*1.1]
+        range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}
     )
     vp.add_hline(y=p_limit, line_dash="dash", line_color="gray")
     vp.add_vline(x=up_threshold, line_dash="dash", line_color="gray")
@@ -658,13 +751,18 @@ def run_quantis(
 @callback(
     Output("string_svg", "src"),
     Input("result_proteins_table", "data"),
+    State("input_format", "value"),
     prevent_initial_call=True
 )
-def show_string_network(data):
+def show_string_network(data, inpf: str):
     if not data:
         return no_update
-
-    proteins = [row["dbname"].split("|")[1] for row in data]
+    if inpf == "MaxQuant":
+        import re
+        template = re.compile(r"|([A-Z][0-9]+)|")
+        proteins = [re.findall(template, row["dbname"])[0][1] for row in data]
+    else:
+        proteins = [row["dbname"].split("|")[1] for row in data]
     return get_string_svg(proteins)
 
 
@@ -709,6 +807,20 @@ def write_single_file(_):
         return path[0]
     return ""
 
+# On DE proteins table click, open Uniprot in browser with protein ID
+@callback(
+    Output("result_proteins_table", "active_row"),
+    Input("result_proteins_table", "active_row"),
+    State("result_proteins_table", "data"),
+    prevent_initial_call=True
+)
+def open_uniprot_browser(active_cell, data):
+    if active_cell is None:
+        return no_update
+    dbname = data[active_cell["row"]]["dbname"]
+    uniprot_id = re.findall(r"sp\|([A-Z0-9]+)", dbname)[0][1]
+    webbrowser.open(f"https://www.uniprot.org/uniprot/{uniprot_id}")
+    return None
 
 # On scipt exit remove uploaded files
 def remove_files():

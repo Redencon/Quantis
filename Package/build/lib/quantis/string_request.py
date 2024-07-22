@@ -10,8 +10,8 @@ def get_string_svg(proteins):
     """
     if not proteins:
         return ""
-    if len(proteins) > 40:
-        return ""
+    # if len(proteins) > 40:
+    #     return ""
     string_api_url = "https://string-db.org/api/"
     output_format = "svg"
     method = "network"

@@ -19,7 +19,7 @@ dependencies = [
     "statsmodels", "scikit-learn", "scipy",
     "pywebview", "requests"
 ]
-version = "0.2"
+version = "0.5"
 
 [project.scripts]
 quantis = "quantis.app:launch_app"
