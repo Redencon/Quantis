@@ -61,6 +61,11 @@ class OneGroupDF(NamedTuple):
     data: pd.DataFrame
     NSAF_cols: list[str]
 
+class DFwThresholds(NamedTuple):
+    """DataFrame with DE proteins and thresholds"""
+    data: pd.DataFrame
+    thresholds: Thresholds
+
 MTC_method = Literal["bonferroni", "holm", "fdr_bh", "sh", "none"]
 ThC_method = Literal["static", "semi-dynamic", "dynamic", "ms1"]
 REG_types = Literal["UP", "DOWN", "BOTH"]
@@ -74,8 +79,7 @@ def load_data_directms1quant(file: str):
     """
     data = pd.read_csv(file, sep='\t')
     data['FC'] = data['log2FoldChange(S2/S1)']
-    data['logFDR'] = -np.log10(data['fdr'])
-    return data[['dbname', 'FC', 'logFDR', 'fdr']]
+    return data[['dbname', 'FC', 'p-value', 'FC_pass', 'BH_pass']]
 
 def load_data_scavager(k_files: list[str], a_files: list[str]) -> TwoGroupDF:
     """Load data from Scavager.
@@ -147,16 +151,24 @@ def calculate_fold_change_p_value(tgdf: TwoGroupDF) -> pd.DataFrame:
     return data
 
 
-def apply_mtc_and_log(data: pd.DataFrame, mtc_method: MTC_method) -> pd.DataFrame:
+def apply_mtc_and_log(dft: DFwThresholds, mtc_method: MTC_method,) -> DFwThresholds:
     """Apply multiple testing correction. Log results.
 
     This step is required for Scavager and MaxQuant.
     """
+    data = dft.data.copy()
     if mtc_method == "none":
-        return data
+        return dft
+    if mtc_method == "bonferroni":
+        ths = dft.thresholds
+        new_thresholds = Thresholds(ths.up_fc, ths.down_fc, ths.p_value + np.log10(len(dft.data)))
+        data["fdr"] = data["p-value"]
+        data["logFDR"] = -np.log10(data["fdr"])
+        return DFwThresholds(data, new_thresholds)
+    data = dft.data.copy()
     data["fdr"] = multipletests(data["p-value"], method=mtc_method)[1]
     data["logFDR"] = -np.log10(data["fdr"])
-    return data
+    return DFwThresholds(data, dft.thresholds)
 
 def calculate_thresholds(data: pd.DataFrame) -> Thresholds:
     """Calculate threshold for log2FC and -log10p.
@@ -185,7 +197,7 @@ def calculate_thresholds_directms1quant(data: pd.DataFrame) -> Thresholds:
     p_limit = data[data["BH_pass"]]["logFDR"].min()
     return Thresholds(up_threshold, down_threshold, p_limit)
 
-def apply_thresholds(data: pd.DataFrame, thresholds: Thresholds, regulation: REG_types) -> pd.DataFrame:
+def apply_thresholds(dwt: DFwThresholds, regulation: REG_types) -> tuple[DFwThresholds, pd.DataFrame]:
     """Apply thresholds and select DE proteins.
     
     This step is required for Scavager and MaxQuant.
@@ -198,33 +210,34 @@ def apply_thresholds(data: pd.DataFrame, thresholds: Thresholds, regulation: REG
         else:
             return "NOT"
     
-    data['regulation'] = data.apply(up_down_regulated, axis=1, thresholds=thresholds)
+    data = dwt.data.copy()
+    data['regulation'] = data.apply(up_down_regulated, axis=1, thresholds=dwt.thresholds)
+    dwt = DFwThresholds(data, dwt.thresholds)
     up_data = data[data['regulation'] == "UP"]
     down_data = data[data['regulation'] == "DOWN"]
     if regulation == "UP":
-        return up_data
+        return dwt, up_data
     if regulation == "DOWN":
-        return down_data
-    return pd.concat([up_data, down_data], ignore_index=True)
+        return dwt, down_data
+    return dwt, pd.concat([up_data, down_data], ignore_index=True)
 
 
 def build_volcano_plot(
-    data: pd.DataFrame,
+    dwt: DFwThresholds,
     color_scheme: ColorScheme,
-    thresholds: Thresholds
 ) -> Figure:
     """Build plotly scatter plot (volcano plot).
     
     This step is required for all paths.
     """
-    fc_max = abs(data['FC']).max()
+    fc_max = abs(dwt.data['FC']).max()
     vp = px.scatter(
-        data, x='FC', y='logFDR', color='regulation',
+        dwt.data, x='FC', y='logFDR', color='regulation',
         labels={'regulation': 'Regulation', 'FC': 'Fold Change', 'logFDR': '-log10(FDR)'},
         color_discrete_map=color_scheme, height=750, title='Volcano Plot', opacity=0.8,
         range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}
     )
-    vp.add_hline(y=thresholds.p_value, line_dash="dash", line_color="gray")
-    vp.add_vline(x=thresholds.up_fc, line_dash="dash", line_color="gray")
-    vp.add_vline(x=thresholds.down_fc, line_dash="dash", line_color="gray")
+    vp.add_hline(y=dwt.thresholds.p_value, line_dash="dash", line_color="gray")
+    vp.add_vline(x=dwt.thresholds.up_fc, line_dash="dash", line_color="gray")
+    vp.add_vline(x=dwt.thresholds.down_fc, line_dash="dash", line_color="gray")
     return vp

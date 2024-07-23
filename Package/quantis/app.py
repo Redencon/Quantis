@@ -1,23 +1,20 @@
-from . import log_setup
+# from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
 import dash_uploader as du
 from dash_daq.ColorPicker import ColorPicker
-from plotly.express import scatter
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from scipy.stats import ttest_ind, iqr
-from statsmodels.stats.multitest import multipletests
 import atexit
 import re
+
+from typing import Any
 
 import webview
 import webbrowser
 
-from .knn_imputation import knn_impute
 from .ncbi_species_parser import fetch_species_name
 from .cash_or_new import hash_parameters, check_existing_data, save_data
-from .df_prep import load_from_lists, load_from_lists_mq
 from .string_request import get_string_svg
 from .open_tsv_files_dialog import open_tsv_files_dialog, save_csv_file_dialog
 from .utils import *
@@ -166,23 +163,20 @@ app.layout = html.Div([
                     html.Td("Species", colSpan=2, style={"width": "64%"}),
                 ]),
                 html.Tr([
-                    html.Td(dcc.Dropdown(id="correction", options=[
-                        {"label": "Bonferroni", "value": "bonferroni"},
-                        {"label": "Holm", "value": "holm"},
-                        {"label": "Benjamini-Hochberg", "value": "fdr_bh"},
-                        {"label": "Simes-Hochberg", "value": "sh"}
-                    ], value="fdr_bh", clearable=False)),
+                    html.Td(dcc.Dropdown(id="correction", clearable=False)),
                     html.Td(dcc.Dropdown(id="species", options=[
                             {"label": "H. sapiens", "value": 9606},
                             {"label": "M. musculus", "value": 10090},
                             {"label": "S. cerevisiae", "value": 4932},
                             {"label": "Custom...", "value": -1}
                     ], value=9606, clearable=False)),
-                    html.Td([
-                        dcc.Input(id="custom_species", type="number", placeholder="NCBI Taxonomy ID", disabled=True, value=9606),
-                        html.P(id="species_name", style={"font-style": "italic"}, children="")
-                    ]),
-                ])
+                    html.Td(
+                        html.Div([
+                            dcc.Input(id="custom_species", type="number", placeholder="NCBI Taxonomy ID", disabled=True, value=9606),
+                            html.P(id="species_name", style={"font-style": "italic"}, children="")
+                        ], style={'display': 'flex', 'flex-direction': 'row'})
+                    ),
+                ]),
             ], style={"padding": 10, 'width': '100%'}),
         ], open=True),
 
@@ -208,7 +202,7 @@ app.layout = html.Div([
     
         # A collapsible div with style parameters
         html.Details([
-            html.Summary("Style Parameters (WIP)"),
+            html.Summary("Style Parameters"),
             html.Div([
                 ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
                 ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
@@ -240,18 +234,27 @@ app.layout = html.Div([
                 {"name": "Fold Change", "id": "FC"},
                 {"name": "p-value", "id": "logFDR"},
             ],
+            style_header={
+                'backgroundColor': 'white',
+                'fontWeight': 'bold',
+                'color': '#3a1771'
+            },
             style_cell_conditional=[
                 {
                     'if': {'column_id': 'dbname'},
                     'textAlign': 'left'
                 },
                 {
+                    'if': {'filter_query': '{FC} < 0', 'column_id': 'FC'},
+                    'backgroundColor': '#c12424', 'color': 'white'
+                },
+                {
                     'if': {'filter_query': '{FC} > 0', 'column_id': 'FC'},
                     'backgroundColor': '#24c1a4',
                 },
                 {
-                    'if': {'filter_query': '{FC} < 0', 'column_id': 'FC'},
-                    'backgroundColor': '#c12424', 'color': 'white'
+                    'if': {'state': 'selected'},
+                    'backgroundColor': '#4b44c5', 'color': 'white'
                 },
             ],
             style_cell={
@@ -326,6 +329,25 @@ def disable_imputation(value):
         return False
 
 
+# Disable bonferonni correction for dynamic threshold calculation
+@callback(
+    Output("correction", "options"),
+    Output("correction", "value"),
+    Input("threshold_calculation", "value")
+)
+def disable_bonferroni(value):
+    correction_options: list[dict[str, Any]] = [
+        {"label": "Bonferroni", "value": "bonferroni"},
+        {"label": "Holm", "value": "holm"},
+        {"label": "Benjamini-Hochberg", "value": "fdr_bh"},
+        {"label": "Simes-Hochberg", "value": "sh"}
+    ]
+    if value in ("dynamic", "ms1"):
+        correction_options[0]["disabled"] = True
+    return correction_options, "fdr_bh"
+    
+
+
 # Add files to tables
 @callback(
     Output("control_files_table", "data", allow_duplicate=True),
@@ -336,9 +358,9 @@ def disable_imputation(value):
 def append_control_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
         data = []
-    lfl = lastfiles.split(";")
-    if not lfl:
+    if not lastfiles:
         return no_update
+    lfl = lastfiles.split(";")
     
     all_paths = set(row["path"] for row in data)
 
@@ -357,9 +379,9 @@ def append_control_files(lastfiles: str, data: list[dict] | None):
 def append_test_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
         data = []
-    lfl = lastfiles.split(";")
-    if not lfl:
+    if not lastfiles:
         return no_update
+    lfl = lastfiles.split(";")
     
     all_paths = set(row["path"] for row in data)
 
@@ -549,12 +571,12 @@ NULL_PLOT = {"layout": {
     Output("volcano_plot", "figure"),
     Output("result_proteins_table", "data"),
     Output("save_proteins_button", "disabled"),
-    Input("fold_change_input", "value"),
-    Input("pvalue_input", "value"),
     Input("start_button", "n_clicks"),
-    Input("regulation", "value"),
-    Input("correction", "value"),
-    Input("threshold_calculation", "value"),
+    State("fold_change_input", "value"),
+    State("pvalue_input", "value"),
+    State("regulation", "value"),
+    State("correction", "value"),
+    State("threshold_calculation", "value"),
     State("control_files_table", "data"),
     State("test_files_table", "data"),
     State("single_file_path", "value"),
@@ -564,10 +586,10 @@ NULL_PLOT = {"layout": {
     State("down_color", "value"),
     State("not_color", "value"),
     State("input_format", "value"),
-    prevent_initial_call=True,
+    # prevent_initial_call=True,
 )
 def run_quantis(
-    fc_threshold, pvalue_threshold, _,
+    _, fc_threshold, pvalue_threshold,
     regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
@@ -594,8 +616,9 @@ def run_quantis(
             tgdf = TwoGroupDF(data, tgdf.K_cols, tgdf.A_cols)
             data = calculate_fold_change_p_value(tgdf)
             save_data(data, _hash, str(CACHE_PATH))
-        data = apply_mtc_and_log(data, correction)
-        thhs_calc = calculate_thresholds(data)
+        dwt = DFwThresholds(data, thhs_set)
+        dwt = apply_mtc_and_log(dwt, correction)
+        thhs_calc = calculate_thresholds(dwt.data)
 
     else:
         if not single_file:
@@ -603,13 +626,15 @@ def run_quantis(
 
         if input_format == "DirectMS1Quant":
             data = load_data_directms1quant(single_file)
-            data = apply_mtc_and_log(data, correction)
-            thhs_calc = calculate_thresholds_directms1quant(data)
+            dwt = DFwThresholds(data, thhs_set)
+            dwt = apply_mtc_and_log(dwt, correction)
+            thhs_calc = calculate_thresholds_directms1quant(dwt.data)
 
         elif input_format == "Diffacto":
             data = load_data_diffacto(single_file)
-            data = apply_mtc_and_log(data, correction)
-            thhs_calc = calculate_thresholds(data)
+            dwt = DFwThresholds(data, thhs_set)
+            dwt = apply_mtc_and_log(dwt, correction)
+            thhs_calc = calculate_thresholds(dwt.data)
 
         elif input_format == "MaxQuant":
             K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
@@ -622,15 +647,20 @@ def run_quantis(
                 tgdf = TwoGroupDF(data, K_cols, A_cols)
                 data = calculate_fold_change_p_value(tgdf)
                 save_data(data, _hash, str(CACHE_PATH))
-            data = apply_mtc_and_log(data, correction)
-            thhs_calc = calculate_thresholds(data)
+            dwt = DFwThresholds(data, thhs_set)
+            dwt = apply_mtc_and_log(dwt, correction)
+            thhs_calc = calculate_thresholds(dwt.data)
 
         else:
             return NULL_PLOT, no_update, no_update
 
-    thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
-    data_de = apply_thresholds(data, thhs, regulation)
-    return build_volcano_plot(data, color_scheme, thhs), data_de.to_dict("records"), False
+    if correction == "bonferroni":
+        thhs = dwt.thresholds
+    else:
+        thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
+    dwt = DFwThresholds(dwt.data, thhs)
+    dwt, data_de = apply_thresholds(dwt, regulation)
+    return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False
 
 # Show StringDB network
 @callback(
