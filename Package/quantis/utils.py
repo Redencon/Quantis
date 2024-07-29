@@ -121,7 +121,7 @@ def impute_missing_values(ogdf: OneGroupDF, method: str) -> pd.DataFrame:
     Imputation method should be specified.
     """
     if method == "Drop":
-        data = ogdf.data.dropna()
+        data = ogdf.data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
     elif method == "Min":
         data = ogdf.data
         for col in ogdf.NSAF_cols:
