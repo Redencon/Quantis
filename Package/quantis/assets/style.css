@@ -206,3 +206,13 @@ button.previous-page, button.next-page, button.first-page, button.last-page {
 .Select-menu-outer {
     color: var(--color-text);
 }
+
+.NCBI-input {
+    height: 100%;
+    border-radius: 0.3em;
+    border-color: none;
+    background-color: white;
+    padding: auto;
+    font-size: 12pt;
+    width: 50%
+}
