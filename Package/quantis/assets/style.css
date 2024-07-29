@@ -216,3 +216,14 @@ button.previous-page, button.next-page, button.first-page, button.last-page {
     font-size: 12pt;
     width: 50%
 }
+
+/* <div class="alert alert-dismissible alert-danger"> */
+
+.alert {
+    flex-direction: row;
+    border-color: #661212;
+    background-color: #e0c0c0;
+    border-radius: 1em;
+    padding-right: 3rem;
+    padding: 1rem;
+}

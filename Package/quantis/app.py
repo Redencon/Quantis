@@ -1,5 +1,6 @@
 # from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
+import dash_bootstrap_components as dbc
 import dash_uploader as du
 from dash_daq.ColorPicker import ColorPicker
 from pathlib import Path
@@ -7,6 +8,7 @@ import pandas as pd
 import numpy as np
 import atexit
 import re
+from traceback import format_exc
 
 from typing import Any
 
@@ -224,6 +226,8 @@ app.layout = html.Div([
     ], className="container"),
     html.Div([
         # ====== Results ======
+        # Error div
+        dbc.Alert(id="run_error",color="danger", is_open=False),
         dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
         dcc.Loading(html.Img(
             id="string_svg",
@@ -577,6 +581,8 @@ NULL_PLOT = {"layout": {
     Output("volcano_plot", "figure"),
     Output("result_proteins_table", "data"),
     Output("save_proteins_button", "disabled"),
+    Output("run_error", "children"),
+    Output("run_error", "is_open"),
     Input("start_button", "n_clicks"),
     State("fold_change_input", "value"),
     State("pvalue_input", "value"),
@@ -604,53 +610,23 @@ def run_quantis(
     up_color, down_color, not_color,
     input_format
 ):
-    thhs_set = Thresholds(up_fc=fc_threshold, down_fc=-fc_threshold, p_value=-np.log10(pvalue_threshold))
-    color_scheme: ColorScheme = {'UP': up_color['hex'], 'DOWN': down_color['hex'], 'NOT': not_color['hex']}
+    try:
+        thhs_set = Thresholds(up_fc=fc_threshold, down_fc=-fc_threshold, p_value=-np.log10(pvalue_threshold))
+        color_scheme: ColorScheme = {'UP': up_color['hex'], 'DOWN': down_color['hex'], 'NOT': not_color['hex']}
 
-    if input_format == "Scavager":
-        if not control_files or not test_files:
-            return NULL_PLOT, no_update, no_update
-        # Turn files into lists
-        cfl = [FILES_PATH / f["path"] for f in control_files]
-        tfl = [FILES_PATH / f["path"] for f in test_files]
-        _hash = hash_parameters(cfl, tfl, imputation, input_format)
-        data = check_existing_data(_hash, str(CACHE_PATH))
-        if data is None:
-            tgdf = load_data_scavager(cfl, tfl)
-            ogdf = OneGroupDF(tgdf.data, tgdf.K_cols + tgdf.A_cols)
-            data = impute_missing_values(ogdf, imputation)
-            tgdf = TwoGroupDF(data, tgdf.K_cols, tgdf.A_cols)
-            data = calculate_fold_change_p_value(tgdf)
-            save_data(data, _hash, str(CACHE_PATH))
-        dwt = DFwThresholds(data, thhs_set)
-        dwt = apply_mtc_and_log(dwt, correction)
-        thhs_calc = calculate_thresholds(dwt.data)
-
-    else:
-        if not single_file:
-            return NULL_PLOT, no_update, no_update
-
-        if input_format == "DirectMS1Quant":
-            data = load_data_directms1quant(single_file)
-            dwt = DFwThresholds(data, thhs_set)
-            dwt = apply_mtc_and_log(dwt, correction)
-            thhs_calc = calculate_thresholds_directms1quant(dwt.data)
-
-        elif input_format == "Diffacto":
-            data = load_data_diffacto(single_file)
-            dwt = DFwThresholds(data, thhs_set)
-            dwt = apply_mtc_and_log(dwt, correction)
-            thhs_calc = calculate_thresholds(dwt.data)
-
-        elif input_format == "MaxQuant":
-            K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
-            A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
-            _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
+        if input_format == "Scavager":
+            if not control_files or not test_files:
+                return NULL_PLOT, no_update, no_update, "", False
+            # Turn files into lists
+            cfl = [FILES_PATH / f["path"] for f in control_files]
+            tfl = [FILES_PATH / f["path"] for f in test_files]
+            _hash = hash_parameters(cfl, tfl, imputation, input_format)
             data = check_existing_data(_hash, str(CACHE_PATH))
-            if not data:
-                ogdf = load_data_maxquant(single_file, K_cols, A_cols)
+            if data is None:
+                tgdf = load_data_scavager(cfl, tfl)
+                ogdf = OneGroupDF(tgdf.data, tgdf.K_cols + tgdf.A_cols)
                 data = impute_missing_values(ogdf, imputation)
-                tgdf = TwoGroupDF(data, K_cols, A_cols)
+                tgdf = TwoGroupDF(data, tgdf.K_cols, tgdf.A_cols)
                 data = calculate_fold_change_p_value(tgdf)
                 save_data(data, _hash, str(CACHE_PATH))
             dwt = DFwThresholds(data, thhs_set)
@@ -658,15 +634,52 @@ def run_quantis(
             thhs_calc = calculate_thresholds(dwt.data)
 
         else:
-            return NULL_PLOT, no_update, no_update
+            if not single_file:
+                return NULL_PLOT, no_update, no_update, "", False
 
-    if correction == "bonferroni":
-        thhs = dwt.thresholds
-    else:
-        thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
-    dwt = DFwThresholds(dwt.data, thhs)
-    dwt, data_de = apply_thresholds(dwt, regulation)
-    return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False
+            if input_format == "DirectMS1Quant":
+                data = load_data_directms1quant(single_file)
+                dwt = DFwThresholds(data, thhs_set)
+                dwt = apply_mtc_and_log(dwt, correction)
+                thhs_calc = calculate_thresholds_directms1quant(dwt.data)
+
+            elif input_format == "Diffacto":
+                data = load_data_diffacto(single_file)
+                dwt = DFwThresholds(data, thhs_set)
+                dwt = apply_mtc_and_log(dwt, correction)
+                thhs_calc = calculate_thresholds(dwt.data)
+
+            elif input_format == "MaxQuant":
+                K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
+                A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
+                _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
+                data = check_existing_data(_hash, str(CACHE_PATH))
+                if not data:
+                    ogdf = load_data_maxquant(single_file, K_cols, A_cols)
+                    data = impute_missing_values(ogdf, imputation)
+                    tgdf = TwoGroupDF(data, K_cols, A_cols)
+                    data = calculate_fold_change_p_value(tgdf)
+                    save_data(data, _hash, str(CACHE_PATH))
+                dwt = DFwThresholds(data, thhs_set)
+                dwt = apply_mtc_and_log(dwt, correction)
+                thhs_calc = calculate_thresholds(dwt.data)
+
+            else:
+                return NULL_PLOT, no_update, no_update, "", False
+
+        if correction == "bonferroni":
+            thhs = dwt.thresholds
+        else:
+            thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
+        dwt = DFwThresholds(dwt.data, thhs)
+        dwt, data_de = apply_thresholds(dwt, regulation)
+        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False
+    except Exception as e:
+        return NULL_PLOT, [], True, [
+            html.H2("An error has occured!"),
+            # *[html.P(line, style={"padding": "0"}) for line in format_exc(limit=3).split("\n")]
+            html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
+        ], True
 
 # Show StringDB network
 @callback(
