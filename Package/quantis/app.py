@@ -320,13 +320,14 @@ def disable_threshold(value):
 # Disable imputation for DirectMS1Quant (and MaxQuant -- restored) and Diffacto
 @callback(
     Output("imputation", "disabled"),
+    Output("imputation", "value"),
     Input("input_format", "value")
 )
 def disable_imputation(value):
     if value in ("DirectMS1Quant", "Diffacto"):
-        return True
+        return True, "Min"
     else:
-        return False
+        return False, "Min"
 
 
 # Disable bonferonni correction for dynamic threshold calculation
