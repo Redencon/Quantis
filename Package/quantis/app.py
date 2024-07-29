@@ -172,8 +172,13 @@ app.layout = html.Div([
                     ], value=9606, clearable=False)),
                     html.Td(
                         html.Div([
-                            dcc.Input(id="custom_species", type="number", placeholder="NCBI Taxonomy ID", disabled=True, value=9606),
-                            html.P(id="species_name", style={"font-style": "italic"}, children="")
+                            dcc.Input(
+                                id="custom_species", type="text", placeholder="NCBI Taxonomy ID",
+                                disabled=True, value="9606", debounce=2, className="NCBI-input"),
+                            html.P(id="species_name", style={
+                                "font-style": "italic", "size": "12pt",
+                                "margin-left": "1rem", "margin": "0", "padding": "0"
+                                }, children="")
                         ], style={'display': 'flex', 'flex-direction': 'row'})
                     ),
                 ]),
@@ -500,7 +505,7 @@ def disable_custom_species(value):
     Input("custom_species", "value"),
     prevent_initial_call=True
 )
-def custom_species_name(taxid):
+def custom_species_name(taxid: str):
     if taxid == "":
         return ""
     try:

@@ -3,7 +3,7 @@ import requests
 import xml.etree.ElementTree as ET
 
 
-def fetch_species_name(taxid: int) -> str:
+def fetch_species_name(taxid: int|str) -> str:
     """Fetch species name by taxonomy ID from NCBI database."""
     url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=taxonomy&id={taxid}"
     response = requests.get(url)
