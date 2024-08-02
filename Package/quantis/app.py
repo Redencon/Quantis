@@ -57,7 +57,7 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id="input_format", options=[
                     {"label": "Scavager", "value": "Scavager"},
-                    {"label": "Scavager+Diffacto", "value": "s+d"},
+                    {"label": "Scavager+Diffacto", "value": "s+d", "disabled": True},  # Research on what typo of workflow it can be used in is needed
                     {"label": "MaxQuant", "value": "MaxQuant"},
                     {"label": "DirectMS1Quant", "value": "DirectMS1Quant"},
                     {"label": "Diffacto", "value": "Diffacto"},
@@ -607,7 +607,7 @@ NULL_PLOT = {"layout": {
     State("down_color", "value"),
     State("not_color", "value"),
     State("input_format", "value"),
-    # prevent_initial_call=True,
+    prevent_initial_call=True,
 )
 def run_quantis(
     _, fc_threshold, pvalue_threshold,
@@ -781,7 +781,7 @@ def save_proteins(_, data):
     prevent_initial_call=True
 )
 def write_control_files(_):
-    return ";".join(open_tsv_files_dialog(window) or [])
+    return ";".join(open_tsv_files_dialog(window, True) or [])
 
 @callback(
     Output("lastfiles_A", "value"),
@@ -789,7 +789,7 @@ def write_control_files(_):
     prevent_initial_call=True
 )
 def write_test_files(_):
-    return ";".join(open_tsv_files_dialog(window) or [])
+    return ";".join(open_tsv_files_dialog(window, True) or [])
 
 @callback(
     Output("single_file_path", "value"),
