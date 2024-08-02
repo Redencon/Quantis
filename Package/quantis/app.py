@@ -590,6 +590,8 @@ NULL_PLOT = {"layout": {
     Output("save_proteins_button", "disabled"),
     Output("run_error", "children"),
     Output("run_error", "is_open"),
+    Output("fold_change_input", "value", allow_duplicate=True),
+    Output("pvalue_input", "value", allow_duplicate=True),
     Input("start_button", "n_clicks"),
     State("fold_change_input", "value"),
     State("pvalue_input", "value"),
@@ -623,7 +625,7 @@ def run_quantis(
 
         if input_format == "s+d":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
             cfl = [FILES_PATH / f["path"] for f in control_files]
             tfl = [FILES_PATH / f["path"] for f in test_files]
             _hash = hash_parameters(cfl, tfl, imputation, input_format)
@@ -633,7 +635,7 @@ def run_quantis(
 
         if input_format == "Scavager":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
             # Turn files into lists
             cfl = [FILES_PATH / f["path"] for f in control_files]
             tfl = [FILES_PATH / f["path"] for f in test_files]
@@ -652,7 +654,7 @@ def run_quantis(
 
         else:
             if not single_file:
-                return NULL_PLOT, no_update, no_update
+                return NULL_PLOT, no_update, no_update, no_update, no_update
 
             if input_format == "DirectMS1Quant":
                 data = load_data_directms1quant(single_file)
@@ -684,7 +686,7 @@ def run_quantis(
 
             else:
                 if not single_file:
-                    return NULL_PLOT, no_update, no_update, "", False
+                    return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
 
                 if input_format == "DirectMS1Quant":
                     data = load_data_directms1quant(single_file)
@@ -714,7 +716,7 @@ def run_quantis(
                     thhs_calc = calculate_thresholds(dwt.data)
 
                 else:
-                    return NULL_PLOT, no_update, no_update, "", False
+                    return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
 
         if correction == "bonferroni":
             thhs = dwt.thresholds
@@ -722,13 +724,16 @@ def run_quantis(
             thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
         dwt = DFwThresholds(dwt.data, thhs)
         dwt, data_de = apply_thresholds(dwt, regulation)
-        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False
+        if input_format in ("DirectMS1Quant", "Diffacto"):
+            fct = round(dwt.thresholds.up_fc, 2)
+            pt = round(0.1**dwt.thresholds.p_value, 3)
+        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fct, pt
     except Exception as e:
         return NULL_PLOT, [], True, [
             html.H2("An error has occured!"),
             # *[html.P(line, style={"padding": "0"}) for line in format_exc(limit=3).split("\n")]
             html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
-        ], True
+        ], True, no_update, no_update
 
 # Show StringDB network
 @callback(
