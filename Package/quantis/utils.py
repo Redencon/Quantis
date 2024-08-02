@@ -268,9 +268,12 @@ def load_data_for_diffacto(k_files: list[str], a_files: list[str]):
     sample_dict = {"K": [], "A": []}
     df0 = pd.DataFrame(columns=["peptide", "protein"])
     i = 1
+    intensity_column = None
+    if intensity_column is None:
+        raise NotImplementedError("Please specify intensity column")
     for group, label in zip([k_files, a_files], ["K", "A"]):
         for file in group:
-            df = pd.read_csv(file, sep="\t")
+            df = pd.read_csv(file, sep="\t")[['peptide', 'protein', intensity_column]]
             df0 = pd.merge(df0, df, on=["peptide", "protein"], how="outer")
             sample_dict[label].append(f"rep{i}")
             i += 1
