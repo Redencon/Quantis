@@ -22,4 +22,4 @@ dependencies = [
 version = "0.5"
 
 [project.scripts]
-quantis = "quantis.app:launch_app"
+quantis = "quantis.app:start_webview"
