@@ -840,6 +840,9 @@ def run_quantis(
         if input_format in ("DirectMS1Quant", "Diffacto"):
             fct = round(dwt.thresholds.up_fc, 2)
             pt = round(0.1**dwt.thresholds.p_value, 3)
+        else:
+            fct = no_update
+            pt = no_update
         return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fct, pt
     except Exception as e:
         return NULL_PLOT, [], True, [
@@ -851,6 +854,8 @@ def run_quantis(
 # Show StringDB network
 @callback(
     Output("string_svg", "src"),
+    Output("run_error", "children", allow_duplicate=True),
+    Output("run_error", "is_open", allow_duplicate=True),
     Input("result_proteins_table", "data"),
     State("input_format", "value"),
     State("req_score", "value"),
@@ -858,20 +863,25 @@ def run_quantis(
     State("custom_species", "value"),
     prevent_initial_call=True
 )
-def show_string_network(data, inpf: str, sp, csp, rs):
-    if sp == -1:
-        sp = csp
-    if not data:
-        return no_update
-    if inpf == "MaxQuant":
-        import re
-        template = re.compile(r"|([A-Z][0-9]+)|")
-        proteins = [re.findall(template, row["dbname"])[0] for row in data]
-    else:
-        proteins = [row["dbname"].split("|")[1] for row in data]
-    if not rs:
-        rs = None
-    return get_string_svg(proteins, sp, rs)
+def show_string_network(data, inpf: str, rs, sp, csp):
+    try:
+        if sp == -1:
+            sp = csp
+        if not data:
+            return no_update
+        if inpf == "MaxQuant":
+            import re
+            template = re.compile(r"|([A-Z][0-9]+)|")
+            proteins = [re.findall(template, row["dbname"])[0] for row in data]
+        else:
+            proteins = [row["dbname"].split("|")[1] for row in data]
+        rs = rs or None
+        return get_string_svg(proteins, sp, rs), no_update, False
+    except Exception as e:
+        return no_update, [
+            html.H2("An error has occured!"),
+            html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
+        ], True
 
 
 # Save DE proteins

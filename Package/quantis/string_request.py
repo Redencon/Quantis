@@ -8,6 +8,8 @@ def get_string_svg(proteins, species, required_score=None):
     Based on `show_string_picture` function from
     https://github.com/kazakova/Metrics/blob/main/QRePS/stattest_metrics.py
     """
+    if species is None or species == '-1':
+        raise ValueError(f"Wrong species provided: {species}")
     if not proteins:
         return ""
     # if len(proteins) > 40:
@@ -28,5 +30,5 @@ def get_string_svg(proteins, species, required_score=None):
     try:
         res = rqt.post(request_url, params)
     except rqt.HTTPError as exception:
-        return ""
+        raise
     return 'data:image/svg+xml;base64,{}'.format(base64.b64encode(res.content).decode())
