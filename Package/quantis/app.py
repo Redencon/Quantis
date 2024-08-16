@@ -20,6 +20,7 @@ from .cash_or_new import hash_parameters, check_existing_data, save_data
 from .string_request import get_string_svg
 from .open_tsv_files_dialog import open_tsv_files_dialog, save_csv_file_dialog, open_exe_files_dialog
 from .utils import *
+from .ms1diffacto import *
 
 
 FILES_PATH = Path(__file__).parent / "user_files"
