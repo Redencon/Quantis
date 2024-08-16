@@ -21,6 +21,7 @@ from .string_request import get_string_svg
 from .open_tsv_files_dialog import open_tsv_files_dialog, save_csv_file_dialog, open_exe_files_dialog
 from .utils import *
 from .ms1diffacto import *
+from .filetypes import descriptions as FTD
 
 
 FILES_PATH = Path(__file__).parent / "user_files"
@@ -47,7 +48,7 @@ du.configure_upload(app, FILES_PATH, use_upload_id=False)
 
 app.layout = html.Div([
     html.Div(
-        html.Header("Quantis"),
+        html.Header("Quantis", id="main_header"),
         className="header-fullwidth"
     ),
     html.Div([
@@ -58,7 +59,7 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id="input_format", options=[
                     {"label": "Scavager", "value": "Scavager"},
-                    {"label": "Scavager+Diffacto", "value": "s+d", "disabled": True},  # Research on what typo of workflow it can be used in is needed
+                    {"label": "MS1+Diffacto", "value": "s+d"},  # Research on what typo of workflow it can be used in is needed
                     {"label": "MaxQuant", "value": "MaxQuant"},
                     {"label": "DirectMS1Quant", "value": "DirectMS1Quant"},
                     {"label": "Diffacto", "value": "Diffacto"},
@@ -66,6 +67,11 @@ app.layout = html.Div([
                 clearable=False, style={'width': '13em'}
             ),
         ], style={'display': 'flex', 'flex-direction': 'row', 'width': '100%'}),
+        html.Details([
+            html.Summary("File type description", style={'font-size': '12pt'}),
+            html.P(id="file_type_description"),
+        ]),
+        dbc.Alert(id="input_error", color="danger", is_open=False),
         # Div for single file input
         html.Div([
             html.Button("Upload score file", id='single_input_btn', className="upload_button"),
@@ -138,7 +144,7 @@ app.layout = html.Div([
             html.P("Or use a sample file:"),
             du.Upload(id="sample_input", filetypes=['csv'], text="Upload Sample File", max_files=1),
             html.Details([
-                html.Summary("What is sample file?", style={'font-size': '16pt'}),
+                html.Summary("What is sample file?", style={'font-size': '12pt'}),
                 html.P(
                     "Sample file is a csv file, containing informtion about input files. "
                     + "It is expected to have two columns: Path with absolute paths to files "
@@ -191,6 +197,22 @@ app.layout = html.Div([
                 ]),
             ], style={"padding": 10, 'width': '100%'})
         ], open=True),
+        
+        html.Details([
+            html.Summary("Diffacto Parameters"),
+            html.Table([
+                html.Tr([
+                    html.Td("Normalize"),
+                    html.Td("Impute threshold"),
+                    html.Td("Min samples"),
+                ]),
+                html.Tr([
+                    html.Td(dcc.Dropdown(id="dif_normalize", options=['average','median','GMM','None'], value="None", clearable=False)),
+                    html.Td(dcc.Input(id="dif_impute_threshold", type="number", min=0, max=1, step=0.05, value=0)),
+                    html.Td(dcc.Input(id="dif_min_samples", type="number", min=0, max=20, step=1, value=0)),
+                ]),
+            ], style={"padding": 10, 'width': '100%'}),
+        ], style={'display': 'hidden'}, id="diffacto_div"),
 
         # Fold change and p-value threshold value sliders with input fields
         # Not collapsible
@@ -214,7 +236,7 @@ app.layout = html.Div([
     
         # A collapsible div with style parameters
         html.Details([
-            html.Summary("Style Parameters"),
+            html.Summary("Style Parameters", style={'font-size': '14pt'}),
             html.Div([
                 ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
                 ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
@@ -287,21 +309,40 @@ window = webview.create_window(app.title, app.server, width=1200, height=800)  #
     Output("single_input_div", "style"),
     Output("multi_input_div", "style"),
     Output("maxquant_table_div", "style"),
-    Output("executable_div", "style"),
     Input("input_format", "value")
 )
 def hide_show_divs(value):
-    if value == "Scavager":
-        return {"display": "none"}, {"display": "grid"}, {"display": "none"}, {"display": "none"}
-    elif value == "s+d":
-        return {"display": "none"}, {"display": "grid"}, {"display": "none"}, {"display": "grid"}
+    if value == "Scavager" or value == "s+d":
+        return {"display": "none"}, {"display": "grid"}, {"display": "none"}
     elif value == "MaxQuant":
-        return {"display": "grid"}, {"display": "none"}, {"display": "grid"}, {"display": "none"}
+        return {"display": "grid"}, {"display": "none"}, {"display": "grid"}
     elif value == "DirectMS1Quant" or value == "Diffacto":
-        return {"display": "grid"}, {"display": "none"}, {"display": "none"}, {"display": "none"}
+        return {"display": "grid"}, {"display": "none"}, {"display": "none"}
     else:
         raise ValueError("File type `{}` is not supported".format(value))
 
+@callback(
+    Output("executable_div", "style"),
+    Output("diffacto_div", "style"),
+    Output("main_header", "children"),
+    Input("input_format", "value")
+)
+def hide_show_diffacto(value):
+    if value == "s+d":
+        return {"display": "grid"}, {"display": "grid"}, "ms1todiffacto.py"
+    else:
+        return {"display": "none"}, {"display": "none"}, "Quantis"
+
+@callback(
+    Output("file_type_description", "children"),
+    Input("input_format", "value")
+)
+def show_file_type_description(value):
+    if value in FTD:
+        return FTD[value]
+    else:
+        return "No description available"
+    
 
 # Fill Column table with ibaq labels on table input
 @callback(
@@ -367,6 +408,93 @@ def disable_bonferroni(value):
 
 
 # Add files to tables
+@callback(
+    Output("lastfiles_K", "value"),
+    Output("input_error", "children"),
+    Output("input_error", "is_open"),
+    Input("control_btn_input", "n_clicks"),
+    State("input_format", "value"),
+    prevent_initial_call=True
+)
+def write_control_files(_, format):
+    files = open_tsv_files_dialog(window, True) or []
+    if format != "s+d":
+        return ";".join(files)
+    failed_files = []
+    passed_files = []
+    for file in files:
+        if are_files_present(file):
+            passed_files.append(file)
+        else:
+            failed_files.append(file)
+    retfiles = ";".join(passed_files)
+    if failed_files:
+        error_message = html.Div([
+            html.H3("Import failure!"),
+            html.P(
+                "To successfully add files for this input type, make sure that files "
+                +"with suffixes '_proteins.tsv', '_PFMs_ML.tsv', '_PFMs.tsv' are present in the same folder."
+            ),
+            html.P("Files that didn't pass the check:"),
+            html.Ul([html.Li(file) for file in failed_files])
+        ])
+        return retfiles, error_message, True
+    return retfiles, "", False
+
+@callback(
+    Output("lastfiles_A", "value"),
+    Input("test_btn_input", "n_clicks"),
+    prevent_initial_call=True
+)
+def write_test_files(_):
+    files = open_tsv_files_dialog(window, True) or []
+    if format != "s+d":
+        return ";".join(files)
+    failed_files = []
+    passed_files = []
+    for file in files:
+        if are_files_present(file):
+            passed_files.append(file)
+        else:
+            failed_files.append(file)
+    retfiles = ";".join(passed_files)
+    if failed_files:
+        error_message = html.Div([
+            html.H3("Import failure!"),
+            html.P(
+                "To successfully add files for this input type, make sure that files "
+                +"with suffixes '_proteins.tsv', '_PFMs_ML.tsv', '_PFMs.tsv' are present in the same folder."
+            ),
+            html.P("Files that didn't pass the check:"),
+            html.Ul([html.Li(file) for file in failed_files])
+        ])
+        return retfiles, error_message, True
+    return retfiles, "", False
+
+@callback(
+    Output("single_file_path", "value"),
+    Input("single_input_btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def write_single_file(_):
+    path = open_tsv_files_dialog(window, False)
+    if path:
+        return path[0]
+    return ""
+
+# Select executable file
+@callback(
+    Output("executable_path", "value"),
+    Input("executable_btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def write_exceutable_file(_):
+    path = open_exe_files_dialog(window, False)
+    if path:
+        return path[0]
+    return ""
+
+
 @callback(
     Output("control_files_table", "data", allow_duplicate=True),
     Input("lastfiles_K", "value"),
@@ -528,10 +656,11 @@ def custom_species_name(taxid: str):
 
 # Sync fold change slider and input
 @callback(
-    Output("fold_change_input", "value"),
+    Output("fold_change_input", "value", allow_duplicate=True),
     Output("fold_change_slider", "value"),
     Input("fold_change_input", "value"),
     Input("fold_change_slider", "value"),
+    prevent_initial_call=True
 )
 def fc_sync(input_val, slider_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -542,10 +671,11 @@ def fc_sync(input_val, slider_val):
 
 # Sync p-value slider and input
 @callback(
-    Output("pvalue_input", "value"),
+    Output("pvalue_input", "value", allow_duplicate=True),
     Output("pvalue_slider", "value"),
     Input("pvalue_input", "value"),
     Input("pvalue_slider", "value"),
+    prevent_initial_call=True
 )
 def pvalue_sync(input_val, slider_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -591,9 +721,10 @@ NULL_PLOT = {"layout": {
     Output("save_proteins_button", "disabled"),
     Output("run_error", "children"),
     Output("run_error", "is_open"),
-    Output("fold_change_input", "value", allow_duplicate=True),
-    Output("pvalue_input", "value", allow_duplicate=True),
+    Output("fold_change_input", "value"),
+    Output("pvalue_input", "value"),
     Input("start_button", "n_clicks"),
+    State("executable_path", "value"),
     State("fold_change_input", "value"),
     State("pvalue_input", "value"),
     State("regulation", "value"),
@@ -608,17 +739,21 @@ NULL_PLOT = {"layout": {
     State("down_color", "value"),
     State("not_color", "value"),
     State("input_format", "value"),
-    prevent_initial_call=True,
+    State("dif_normalize", "value"),
+    State("dif_impute_threshold", "value"),
+    State("dif_min_samples", "value"),
+    # prevent_initial_call=True,
 )
 def run_quantis(
-    _, fc_threshold, pvalue_threshold,
+    _, exec_str, fc_threshold, pvalue_threshold,
     regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
     column_DT,
     imputation,
     up_color, down_color, not_color,
-    input_format
+    input_format,
+    d_norm, d_it, d_ms
 ):
     try:
         thhs_set = Thresholds(up_fc=fc_threshold, down_fc=-fc_threshold, p_value=-np.log10(pvalue_threshold))
@@ -627,19 +762,28 @@ def run_quantis(
         if input_format == "s+d":
             if not control_files or not test_files:
                 return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
-            cfl = [FILES_PATH / f["path"] for f in control_files]
-            tfl = [FILES_PATH / f["path"] for f in test_files]
+            if not exec_str:
+                return NULL_PLOT, no_update, no_update, "No executable file selected", True, no_update, no_update
+            cfl = [f["path"] for f in control_files]
+            tfl = [f["path"] for f in test_files]
             _hash = hash_parameters(cfl, tfl, imputation, input_format)
             data = check_existing_data(_hash, str(CACHE_PATH))
-            di, dis = load_data_for_diffacto(cfl, tfl)
-            res = run_diffacto(di, dis)
+            d_input = compile_diffacto_data(cfl, tfl, str(FILES_PATH))
+            d_it = d_it or 0.75
+            d_ms = d_ms or 3
+            single_file = run_diffacto(
+                d_input, exec_str,
+                DiffactoParameters(normalize=d_norm, impute_threshold=d_it, min_samples=d_ms),
+                str(FILES_PATH)
+            )
+            input_format = "Diffacto"
 
         if input_format == "Scavager":
             if not control_files or not test_files:
                 return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
             # Turn files into lists
-            cfl = [FILES_PATH / f["path"] for f in control_files]
-            tfl = [FILES_PATH / f["path"] for f in test_files]
+            cfl = [f["path"] for f in control_files]
+            tfl = [f["path"] for f in test_files]
             _hash = hash_parameters(cfl, tfl, imputation, input_format)
             data = check_existing_data(_hash, str(CACHE_PATH))
             if data is None:
@@ -675,10 +819,9 @@ def run_quantis(
                 _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
                 data = check_existing_data(_hash, str(CACHE_PATH))
                 if data is None:
-                    tgdf = load_data_scavager(cfl, tfl)
-                    ogdf = OneGroupDF(tgdf.data, tgdf.K_cols + tgdf.A_cols)
+                    ogdf = load_data_maxquant(single_file, K_cols, A_cols)
                     data = impute_missing_values(ogdf, imputation)
-                    tgdf = TwoGroupDF(data, tgdf.K_cols, tgdf.A_cols)
+                    tgdf = TwoGroupDF(data, K_cols, A_cols)
                     data = calculate_fold_change_p_value(tgdf)
                     save_data(data, _hash, str(CACHE_PATH))
                 dwt = DFwThresholds(data, thhs_set)
@@ -686,38 +829,7 @@ def run_quantis(
                 thhs_calc = calculate_thresholds(dwt.data)
 
             else:
-                if not single_file:
-                    return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
-
-                if input_format == "DirectMS1Quant":
-                    data = load_data_directms1quant(single_file)
-                    dwt = DFwThresholds(data, thhs_set)
-                    dwt = apply_mtc_and_log(dwt, correction)
-                    thhs_calc = calculate_thresholds_directms1quant(dwt.data)
-
-                elif input_format == "Diffacto":
-                    data = load_data_diffacto(single_file)
-                    dwt = DFwThresholds(data, thhs_set)
-                    dwt = apply_mtc_and_log(dwt, correction)
-                    thhs_calc = calculate_thresholds(dwt.data)
-
-                elif input_format == "MaxQuant":
-                    K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
-                    A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
-                    _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
-                    data = check_existing_data(_hash, str(CACHE_PATH))
-                    if not data:
-                        ogdf = load_data_maxquant(single_file, K_cols, A_cols)
-                        data = impute_missing_values(ogdf, imputation)
-                        tgdf = TwoGroupDF(data, K_cols, A_cols)
-                        data = calculate_fold_change_p_value(tgdf)
-                        save_data(data, _hash, str(CACHE_PATH))
-                    dwt = DFwThresholds(data, thhs_set)
-                    dwt = apply_mtc_and_log(dwt, correction)
-                    thhs_calc = calculate_thresholds(dwt.data)
-
-                else:
-                    return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
 
         if correction == "bonferroni":
             thhs = dwt.thresholds
@@ -775,45 +887,6 @@ def save_proteins(_, data):
     if path:
         df.to_csv(str(path), index=False)
     return None
-
-@callback(
-    Output("lastfiles_K", "value"),
-    Input("control_btn_input", "n_clicks"),
-    prevent_initial_call=True
-)
-def write_control_files(_):
-    return ";".join(open_tsv_files_dialog(window, True) or [])
-
-@callback(
-    Output("lastfiles_A", "value"),
-    Input("test_btn_input", "n_clicks"),
-    prevent_initial_call=True
-)
-def write_test_files(_):
-    return ";".join(open_tsv_files_dialog(window, True) or [])
-
-@callback(
-    Output("single_file_path", "value"),
-    Input("single_input_btn", "n_clicks"),
-    prevent_initial_call=True
-)
-def write_single_file(_):
-    path = open_tsv_files_dialog(window, False)
-    if path:
-        return path[0]
-    return ""
-
-# Select executable file
-@callback(
-    Output("executable_path", "value"),
-    Input("executable_btn", "n_clicks"),
-    prevent_initial_call=True
-)
-def write_single_file(_):
-    path = open_exe_files_dialog(window, False)
-    if path:
-        return path[0]
-    return ""
 
 # On DE proteins table click, open Uniprot in browser with protein ID
 @callback(
