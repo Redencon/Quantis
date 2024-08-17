@@ -121,7 +121,7 @@ def impute_missing_values(ogdf: OneGroupDF, method: str) -> pd.DataFrame:
     Imputation method should be specified.
     """
     if method == "Drop":
-        data = ogdf.data.dropna()
+        data = ogdf.data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
     elif method == "Min":
         data = ogdf.data
         for col in ogdf.NSAF_cols:
@@ -236,6 +236,10 @@ def build_volcano_plot(
         labels={'regulation': 'Regulation', 'FC': 'Fold Change', 'logFDR': '-log10(FDR)'},
         color_discrete_map=color_scheme, height=750, title='Volcano Plot', opacity=0.8,
         range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}
+    )
+    vp.update_layout(
+        title_font_family="Montserrat",
+        font_family="Montserrat"
     )
     vp.add_hline(y=dwt.thresholds.p_value, line_dash="dash", line_color="gray")
     vp.add_vline(x=dwt.thresholds.up_fc, line_dash="dash", line_color="gray")

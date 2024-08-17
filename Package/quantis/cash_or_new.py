@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 
 def hash_parameters(
-    k_files: list[str],
+    k_files: list[str]|str,
     a_files: list[str],
     imputation: str,
     f_format: str,
