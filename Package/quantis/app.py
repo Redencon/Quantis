@@ -837,7 +837,7 @@ def run_quantis(
             thhs = replace_thresholds(thhs_set, thhs_calc, threshold_calculation)
         dwt = DFwThresholds(dwt.data, thhs)
         dwt, data_de = apply_thresholds(dwt, regulation)
-        if input_format in ("DirectMS1Quant", "Diffacto"):
+        if input_format in ("DirectMS1Quant", "Diffacto") or threshold_calculation != "static":
             fct = round(dwt.thresholds.up_fc, 2)
             pt = round(0.1**dwt.thresholds.p_value, 3)
         else:

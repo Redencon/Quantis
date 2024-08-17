@@ -20,7 +20,7 @@ dependencies = [
     "pywebview", "requests", "dash-uploader",
     "dash-bootstrap-components",
 ]
-version = "0.7"
+version = "0.6"
 
 [project.scripts]
 quantis = "quantis.app:start_webview"
