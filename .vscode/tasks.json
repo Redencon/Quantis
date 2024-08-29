@@ -1,0 +1,12 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "pyinstaller: build",
+            "type": "shell",
+            "command": "pyinstaller --add-data \"Package/quantis/assets:assets\" --collect-data dash_daq -w --noconfirm -i \"C:\\Users\\Redencon\\Documents\\PyScripts\\Quantis\\playground\\Quantis_Icon.bmp\" --collect-data quantis .\\q_launch.py"
+        }
+    ]
+}
