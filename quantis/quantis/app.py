@@ -243,10 +243,9 @@ def write_exceutable_file(_):
 
 
 @callback(
-    Output("control_files_table", "data", allow_duplicate=True),
+    Output("control_files_table", "data"),
     Input("lastfiles_K", "value"),
-    State("control_files_table", "data"),
-    prevent_initial_call=True
+    State("control_files_table", "data")
 )
 def append_control_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
@@ -264,10 +263,9 @@ def append_control_files(lastfiles: str, data: list[dict] | None):
     return data
 
 @callback(
-    Output("test_files_table", "data", allow_duplicate=True),
+    Output("test_files_table", "data"),
     Input("lastfiles_A", "value"),
     State("test_files_table", "data"),
-    prevent_initial_call=True
 )
 def append_test_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
@@ -707,7 +705,7 @@ def set_layout(app: Dash, args: argp.Namespace):
             # Div for single file input
             html.Div([
                 html.Button("Upload score file", id='single_input_btn', className="upload_button"),
-                dcc.Input(id="single_file_path", value=";".join(args.sample), placeholder="No file selected", disabled=True, className="path_input"),
+                dcc.Input(id="single_file_path", value=(args.sample or ""), placeholder="No file selected", disabled=True, className="path_input"),
                 html.Div(dash_table.DataTable(
                     id="column_DT",
                     columns=[
@@ -748,7 +746,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                             style_cell={
                                 'overflow': 'hidden', 'textOverflow': 'ellipsis',
                                 'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
-                        dcc.Input(id="lastfiles_K", type="hidden", value=";".join(args.s1)),
+                        dcc.Input(id="lastfiles_K", type="hidden", value=";".join(args.s1 or [])),
                         html.Div([
                             html.Button("Remove selected", id="rm_K_sel_btn", className="rm_button"),
                             html.Button("Remove all", id="rm_K_all_btn", className="rm_button"),
@@ -764,7 +762,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                             style_cell={
                                 'overflow': 'hidden', 'textOverflow': 'ellipsis',
                                 'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
-                        dcc.Input(id="lastfiles_A", type="hidden", value=";".join(args.s2)),
+                        dcc.Input(id="lastfiles_A", type="hidden", value=";".join(args.s2 or [])),
                         html.Div([
                             html.Button("Remove selected", id="rm_A_sel_btn", className="rm_button"),
                             html.Button("Remove all", id="rm_A_all_btn", className="rm_button"),
@@ -807,7 +805,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                             {"label": "dynamic", "value": "dynamic"},
                             {"label": "MS1", "value": "ms1", "disabled": True}
                         ], value="static", clearable=False)),
-                        html.Td(dcc.Dropdown(id="correction", clearable=False)),
+                        html.Td(dcc.Dropdown(id="correction", clearable=False, value="fdr_bh")),
                     ]),
                 ], style={"padding": 10, 'width': '100%'}),
                 html.H3("StringDB network"),
@@ -933,19 +931,29 @@ def set_layout(app: Dash, args: argp.Namespace):
     ])
 
 
-def launch_from_cli():
-    pass
-
-
-def launch():
-    pass
-
-
 def start_webview():
     create_user_files_dirs()
     webview.start()
 
 
+def launch_from_cli():
+    parser = argp.ArgumentParser(
+        description="Visual Interface for qunatification analysis of MS/MS proteomics data",
+        formatter_class=argp.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--format", "-f", help="format of input data. Allowed values: 'Scavager', 's+d', 'MaxQuant', 'DirectMS1Quant', 'Diffacto'", default='Scavager')
+    parser.add_argument("--sample", "-s", help="single file input")
+    parser.add_argument("-s1", help="control files input", nargs='+')
+    parser.add_argument("-s2", help="test files input", nargs='+')
+    args = parser.parse_args()
+    set_layout(app, args)
+    start_webview()
+
+
+def launch():
+    args = argp.Namespace(format='Scavager')
+
+
 if __name__ == "__main__":
     # app.run_server(debug=False)
-    start_webview()
+    launch_from_cli()
