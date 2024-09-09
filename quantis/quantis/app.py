@@ -950,6 +950,16 @@ def launch_from_cli():
     start_webview()
 
 
+def launch_import(s0=None, s1=None, s2=None, fmt=None):
+    args_dict = {"sample": s0, "s1": s1, "s2": s2, "format": fmt}
+    args_dict = {k: v for k, v in args_dict.items() if v is not None}
+    args = argp.Namespace(
+        **args_dict
+    )
+    set_layout(app, args)
+    start_webview()
+
+
 def launch():
     args = argp.Namespace(format='Scavager')
 
