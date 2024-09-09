@@ -10,6 +10,8 @@ import atexit
 import re
 from traceback import format_exc
 
+import argparse as argp
+
 from typing import Any
 
 import webview
@@ -44,261 +46,6 @@ def resource_path(relative_path):
 # app = Dash("Quantis", external_stylesheets=["style.css"])
 app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
 du.configure_upload(app, FILES_PATH, use_upload_id=False)
-
-
-app.layout = html.Div([
-    html.Div(
-        html.Header("Quantis", id="main_header"),
-        className="header-fullwidth"
-    ),
-    html.Div([
-
-        html.H2("Input"),
-        html.Div([
-            html.P("Input file format: ", style={'marginRight': '0.5em'}),
-            dcc.Dropdown(
-                id="input_format", options=[
-                    {"label": "Scavager", "value": "Scavager"},
-                    {"label": "MS1+Diffacto", "value": "s+d"},  # Research on what typo of workflow it can be used in is needed
-                    {"label": "MaxQuant", "value": "MaxQuant"},
-                    {"label": "DirectMS1Quant", "value": "DirectMS1Quant"},
-                    {"label": "Diffacto", "value": "Diffacto"},
-                ], value="Scavager",
-                clearable=False, style={'width': '13em'}
-            ),
-        ], style={'display': 'flex', 'flex-direction': 'row', 'width': '100%'}),
-        html.Details([
-            html.Summary("File type description", style={'font-size': '12pt'}),
-            html.P(id="file_type_description"),
-        ]),
-        dbc.Alert(id="input_error", color="danger", is_open=False),
-        # Div for single file input
-        html.Div([
-            html.Button("Upload score file", id='single_input_btn', className="upload_button"),
-            dcc.Input(id="single_file_path", value="", placeholder="No file selected", disabled=True, className="path_input"),
-            html.Div(dash_table.DataTable(
-                id="column_DT",
-                columns=[
-                    {'id': 'col', 'name': 'Label', 'editable': False},
-                    {'id': 'kan', 'name': 'Group', 'presentation': 'dropdown'}
-                ],
-                editable=True,
-                dropdown={
-                    'kan': {'options':[
-                        {'label': 'None', 'value': 'N'},
-                        {'label': 'Control', 'value': 'K'},
-                        {'label': 'Test', 'value': 'A'},
-                    ], 'clearable': False}
-                },
-                page_size=10,
-                page_action='native',
-                page_current=0,
-                cell_selectable=False
-            ), style={'display': 'hidden'}, id="maxquant_table_div")
-        ], style={"diplay": "hidden"}, id="single_input_div"),
-        # Div for multiple files input
-        html.Div([
-            html.Div([
-                html.P("Select executable file:"),
-                html.Div([
-                    dcc.Input(id="executable_path", type="text", placeholder="Path to Executable", disabled=True, style={'width': '100%'}),
-                    html.Button("Browse", id="executable_btn", className="exec_button"),
-                ], style={'display': 'flex', 'flex-direction': 'row'}),
-            ], style={"display": "hidden"}, id="executable_div"),
-            html.Div([
-                html.Div([
-                    dcc.Input(id="control_name", type="text", placeholder="Control", className="group-title"),
-                    # du.Upload(id="control_input", filetypes=['tsv'], text="Upload Control", max_files=10),
-                    html.Button("Upload control files", id="control_btn_input", className="upload_button"),
-                    dash_table.DataTable(
-                        id="control_files_table", columns=[{"id": "path", "name": "File Path"}],
-                        editable=False, row_selectable="multi", cell_selectable=False,
-                        style_cell={
-                            'overflow': 'hidden', 'textOverflow': 'ellipsis',
-                            'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
-                    dcc.Input(id="lastfiles_K", type="hidden", value=""),
-                    html.Div([
-                        html.Button("Remove selected", id="rm_K_sel_btn", className="rm_button"),
-                        html.Button("Remove all", id="rm_K_all_btn", className="rm_button"),
-                    ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
-                ], style={"padding": 10, 'flex': 1}),
-                html.Div([
-                    dcc.Input(id="test_name", type="text", placeholder="Test", className="group-title"),
-                    html.Button("Upload test files", id="test_btn_input", className="upload_button"),
-                    # du.Upload(id="test_input", filetypes=['tsv'], text="Upload Test", max_files=10),
-                    dash_table.DataTable(
-                        id="test_files_table", columns=[{"id": "path", "name": "File Path"}],
-                        editable=False, row_selectable="multi", cell_selectable=False,
-                        style_cell={
-                            'overflow': 'hidden', 'textOverflow': 'ellipsis',
-                            'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
-                    dcc.Input(id="lastfiles_A", type="hidden", value=""),
-                    html.Div([
-                        html.Button("Remove selected", id="rm_A_sel_btn", className="rm_button"),
-                        html.Button("Remove all", id="rm_A_all_btn", className="rm_button"),
-                    ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
-                ], style={"padding": 10, 'flex': 1}),
-            ], style={'display': 'flex', 'flex-direction': 'row'}),
-            dcc.Download(id="download_sample"),
-            html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
-            html.P("Or use a sample file:"),
-            du.Upload(id="sample_input", filetypes=['csv'], text="Upload Sample File", max_files=1),
-            html.Details([
-                html.Summary("What is sample file?", style={'font-size': '12pt'}),
-                html.P(
-                    "Sample file is a csv file, containing informtion about input files. "
-                    + "It is expected to have two columns: Path with absolute paths to files "
-                    + "and Sample, containing letters K and A for control and test files respectfully."
-                )
-            ]),
-        ], style={"diplay": "grid"}, id="multi_input_div"),
-        html.Br(),
-
-        # A collapsible div with quantification parameters, collapsed by default
-        html.Details([
-            html.Summary("Quantification Parameters"),
-            html.H3("Statistical processing"),
-            html.Table([
-                # First row
-                html.Tr([
-                    html.Td("Imputation", style={"width": "25%"}),
-                    html.Td("Regulation", style={"width": "25%"}),
-                    html.Td("Threshold calculation", style={"width": "25%"}),
-                    html.Td("Multiple-testing correction", style={"width": "25%"}),
-                ]),
-                html.Tr([
-                    html.Td(dcc.Dropdown(id="imputation", options=["Drop", "Min", "kNN"], value="Min", clearable=False)),
-                    html.Td(dcc.Dropdown(id="regulation", options=["UP", "DOWN", "BOTH"], value="BOTH", clearable=False)),
-                    html.Td(dcc.Dropdown(id="threshold_calculation", options=[
-                        {"label": "static", "value": "static"},
-                        {"label": "semi-dynamic", "value": "semi-dynamic"},
-                        {"label": "dynamic", "value": "dynamic"},
-                        {"label": "MS1", "value": "ms1", "disabled": True}
-                    ], value="static", clearable=False)),
-                    html.Td(dcc.Dropdown(id="correction", clearable=False)),
-                ]),
-            ], style={"padding": 10, 'width': '100%'}),
-            html.H3("StringDB network"),
-            html.Table([
-                html.Tr([
-                    html.Td("Required score"),
-                    html.Td("Species", colSpan=2),
-                ]),
-                html.Tr([
-                    html.Td(dcc.Input(id="req_score", type="number", min=0, max=1000, step=100, placeholder="default"), style={"width": "30%"}),
-                    html.Td(dcc.Dropdown(id="species", options=[
-                            {"label": "H. sapiens", "value": 9606},
-                            {"label": "M. musculus", "value": 10090},
-                            {"label": "S. cerevisiae", "value": 4932},
-                            {"label": "Custom...", "value": -1}
-                    ], value=9606, clearable=False), style={"width": "25%"}),
-                    html.Td(dcc.Input(id="custom_species", type="number", placeholder="NCBI Taxonomy ID", disabled=True, value=9606, debounce=2), style={"width": "25%"}),
-                    html.Td(html.P(id="species_name", style={"font-style": "italic", "margin": 0}, children=""), style={"width": "25%"})
-                ]),
-            ], style={"padding": 10, 'width': '100%'})
-        ], open=True),
-        
-        html.Details([
-            html.Summary("Diffacto Parameters"),
-            html.Table([
-                html.Tr([
-                    html.Td("Normalize"),
-                    html.Td("Impute threshold"),
-                    html.Td("Min samples"),
-                ]),
-                html.Tr([
-                    html.Td(dcc.Dropdown(id="dif_normalize", options=['average','median','GMM','None'], value="None", clearable=False)),
-                    html.Td(dcc.Input(id="dif_impute_threshold", type="number", min=0, max=1, step=0.05, value=0)),
-                    html.Td(dcc.Input(id="dif_min_samples", type="number", min=0, max=20, step=1, value=0)),
-                ]),
-            ], style={"padding": 10, 'width': '100%'}),
-        ], style={'display': 'hidden'}, id="diffacto_div"),
-
-        # Fold change and p-value threshold value sliders with input fields
-        # Not collapsible
-        html.Div([
-            html.H3("Fold Change Threshold"),
-            html.Div([
-                dcc.Input(id="fold_change_input", type="number", value=1, style={"width": "15%"}),
-                html.Div(dcc.Slider(
-                    id="fold_change_slider", min=0.5, max=3, step=0.1, value=1, marks={0.5*i: f"{0.5*i}" for i in range(1,7)}
-                ), style={"width": "80%"}),
-            ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
-            html.H3("P-value Threshold"),
-            html.Div([
-                dcc.Input(id="pvalue_input", type="number", value=0.01, style={"width": "15%"}),
-                html.Div(dcc.Slider(
-                    id="pvalue_slider", min=-5, max=-1, step=0.1,
-                    value=-2, marks={i: f"{10**i}" for i in range(-5, 0)}
-                ), style={"width": "80%"}),
-            ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
-        ]),
-    
-        # A collapsible div with style parameters
-        html.Details([
-            html.Summary("Style Parameters", style={'font-size': '14pt'}),
-            html.Div([
-                ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
-                ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
-                ColorPicker(id="not_color", label="Background points", value={'hex': "#129dfc"}),
-            ], style={"padding": 10, "display": "flex", "flex-direction": "row"})
-        ]),
-
-        # Button to start the analysis
-        html.Button(
-            "Start Analysis", id="start_button", className="start_button",
-            style={'margin-left': 'auto', 'margin-right': 'auto'}
-        ),
-        html.Hr(),
-    ], className="container"),
-    html.Div([
-        # ====== Results ======
-        # Error div
-        dbc.Alert(id="run_error",color="danger", is_open=False),
-        dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
-        dcc.Loading(html.Img(
-            id="string_svg",
-            style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
-        ), type="circle"),
-        html.H3("Differentially Expressed Proteins"),
-        html.Button("Save DE protens", id="save_proteins_button", disabled=True),
-        dcc.Download(id="download_proteins"),
-        dash_table.DataTable(
-            id="result_proteins_table",
-            columns=[
-                {"name": "Protein", "id": "dbname"},
-                {"name": "Fold Change", "id": "FC"},
-                {"name": "p-value", "id": "logFDR"},
-            ],
-            style_header={
-                'backgroundColor': 'white',
-                'fontWeight': 'bold',
-                'color': '#3a1771'
-            },
-            style_cell_conditional=[
-                {
-                    'if': {'column_id': 'dbname'},
-                    'textAlign': 'left'
-                },
-                {
-                    'if': {'filter_query': '{FC} < 0', 'column_id': 'FC'},
-                    'backgroundColor': '#c12424', 'color': 'white'
-                },
-                {
-                    'if': {'filter_query': '{FC} > 0', 'column_id': 'FC'},
-                    'backgroundColor': '#24c1a4',
-                },
-                {
-                    'if': {'state': 'selected'},
-                    'backgroundColor': '#4b44c5', 'color': 'white'
-                },
-            ],
-            style_cell={
-                'overflow': 'hidden', 'textOverflow': 'ellipsis','maxWidth': 0,
-            }
-        ),
-    ])
-])
 
 window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
 
@@ -496,10 +243,9 @@ def write_exceutable_file(_):
 
 
 @callback(
-    Output("control_files_table", "data", allow_duplicate=True),
+    Output("control_files_table", "data"),
     Input("lastfiles_K", "value"),
-    State("control_files_table", "data"),
-    prevent_initial_call=True
+    State("control_files_table", "data")
 )
 def append_control_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
@@ -517,10 +263,9 @@ def append_control_files(lastfiles: str, data: list[dict] | None):
     return data
 
 @callback(
-    Output("test_files_table", "data", allow_duplicate=True),
+    Output("test_files_table", "data"),
     Input("lastfiles_A", "value"),
     State("test_files_table", "data"),
-    prevent_initial_call=True
 )
 def append_test_files(lastfiles: str, data: list[dict] | None):
     if data is None: # Prevents error when data is None
@@ -799,7 +544,7 @@ def run_quantis(
 
         else:
             if not single_file:
-                return NULL_PLOT, no_update, no_update, no_update, no_update
+                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update
 
             if input_format == "DirectMS1Quant":
                 data = load_data_directms1quant(single_file)
@@ -929,11 +674,295 @@ def create_user_files_dirs():
 
 atexit.register(remove_files)
 
+
+def set_layout(app: Dash, args: argp.Namespace):
+    app.layout = html.Div([
+        html.Div(
+            html.Header("Quantis", id="main_header"),
+            className="header-fullwidth"
+        ),
+        html.Div([
+
+            html.H2("Input"),
+            html.Div([
+                html.P("Input file format: ", style={'marginRight': '0.5em'}),
+                dcc.Dropdown(
+                    id="input_format", options=[
+                        {"label": "Scavager", "value": "Scavager"},
+                        {"label": "MS1+Diffacto", "value": "s+d"},  # Research on what typo of workflow it can be used in is needed
+                        {"label": "MaxQuant", "value": "MaxQuant"},
+                        {"label": "DirectMS1Quant", "value": "DirectMS1Quant"},
+                        {"label": "Diffacto", "value": "Diffacto"},
+                    ], value=args.format,
+                    clearable=False, style={'width': '13em'}
+                ),
+            ], style={'display': 'flex', 'flex-direction': 'row', 'width': '100%'}),
+            html.Details([
+                html.Summary("File type description", style={'font-size': '12pt'}),
+                html.P(id="file_type_description"),
+            ]),
+            dbc.Alert(id="input_error", color="danger", is_open=False),
+            # Div for single file input
+            html.Div([
+                html.Button("Upload score file", id='single_input_btn', className="upload_button"),
+                dcc.Input(id="single_file_path", value=(args.sample or ""), placeholder="No file selected", disabled=True, className="path_input"),
+                html.Div(dash_table.DataTable(
+                    id="column_DT",
+                    columns=[
+                        {'id': 'col', 'name': 'Label', 'editable': False},
+                        {'id': 'kan', 'name': 'Group', 'presentation': 'dropdown'}
+                    ],
+                    editable=True,
+                    dropdown={
+                        'kan': {'options':[
+                            {'label': 'None', 'value': 'N'},
+                            {'label': 'Control', 'value': 'K'},
+                            {'label': 'Test', 'value': 'A'},
+                        ], 'clearable': False}
+                    },
+                    page_size=10,
+                    page_action='native',
+                    page_current=0,
+                    cell_selectable=False
+                ), style={'display': 'hidden'}, id="maxquant_table_div")
+            ], style={"diplay": "hidden"}, id="single_input_div"),
+            # Div for multiple files input
+            html.Div([
+                html.Div([
+                    html.P("Select executable file:"),
+                    html.Div([
+                        dcc.Input(id="executable_path", type="text", placeholder="Path to Executable", disabled=True, style={'width': '100%'}),
+                        html.Button("Browse", id="executable_btn", className="exec_button"),
+                    ], style={'display': 'flex', 'flex-direction': 'row'}),
+                ], style={"display": "hidden"}, id="executable_div"),
+                html.Div([
+                    html.Div([
+                        dcc.Input(id="control_name", type="text", placeholder="Control", className="group-title"),
+                        # du.Upload(id="control_input", filetypes=['tsv'], text="Upload Control", max_files=10),
+                        html.Button("Upload control files", id="control_btn_input", className="upload_button"),
+                        dash_table.DataTable(
+                            id="control_files_table", columns=[{"id": "path", "name": "File Path"}],
+                            editable=False, row_selectable="multi", cell_selectable=False,
+                            style_cell={
+                                'overflow': 'hidden', 'textOverflow': 'ellipsis',
+                                'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
+                        dcc.Input(id="lastfiles_K", type="hidden", value=";".join(args.s1 or [])),
+                        html.Div([
+                            html.Button("Remove selected", id="rm_K_sel_btn", className="rm_button"),
+                            html.Button("Remove all", id="rm_K_all_btn", className="rm_button"),
+                        ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
+                    ], style={"padding": 10, 'flex': 1}),
+                    html.Div([
+                        dcc.Input(id="test_name", type="text", placeholder="Test", className="group-title"),
+                        html.Button("Upload test files", id="test_btn_input", className="upload_button"),
+                        # du.Upload(id="test_input", filetypes=['tsv'], text="Upload Test", max_files=10),
+                        dash_table.DataTable(
+                            id="test_files_table", columns=[{"id": "path", "name": "File Path"}],
+                            editable=False, row_selectable="multi", cell_selectable=False,
+                            style_cell={
+                                'overflow': 'hidden', 'textOverflow': 'ellipsis',
+                                'maxWidth': 0, 'textAlign': 'left', 'direction': 'rtl'}),
+                        dcc.Input(id="lastfiles_A", type="hidden", value=";".join(args.s2 or [])),
+                        html.Div([
+                            html.Button("Remove selected", id="rm_A_sel_btn", className="rm_button"),
+                            html.Button("Remove all", id="rm_A_all_btn", className="rm_button"),
+                        ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
+                    ], style={"padding": 10, 'flex': 1}),
+                ], style={'display': 'flex', 'flex-direction': 'row'}),
+                dcc.Download(id="download_sample"),
+                html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
+                html.P("Or use a sample file:"),
+                du.Upload(id="sample_input", filetypes=['csv'], text="Upload Sample File", max_files=1),
+                html.Details([
+                    html.Summary("What is sample file?", style={'font-size': '12pt'}),
+                    html.P(
+                        "Sample file is a csv file, containing informtion about input files. "
+                        + "It is expected to have two columns: Path with absolute paths to files "
+                        + "and Sample, containing letters K and A for control and test files respectfully."
+                    )
+                ]),
+            ], style={"diplay": "grid"}, id="multi_input_div"),
+            html.Br(),
+
+            # A collapsible div with quantification parameters, collapsed by default
+            html.Details([
+                html.Summary("Quantification Parameters"),
+                html.H3("Statistical processing"),
+                html.Table([
+                    # First row
+                    html.Tr([
+                        html.Td("Imputation", style={"width": "25%"}),
+                        html.Td("Regulation", style={"width": "25%"}),
+                        html.Td("Threshold calculation", style={"width": "25%"}),
+                        html.Td("Multiple-testing correction", style={"width": "25%"}),
+                    ]),
+                    html.Tr([
+                        html.Td(dcc.Dropdown(id="imputation", options=["Drop", "Min", "kNN"], value="Min", clearable=False)),  # default: Min
+                        html.Td(dcc.Dropdown(id="regulation", options=["UP", "DOWN", "BOTH"], value="BOTH", clearable=False)),  # default: BOTH
+                        html.Td(dcc.Dropdown(id="threshold_calculation", options=[
+                            {"label": "static", "value": "static"},
+                            {"label": "semi-dynamic", "value": "semi-dynamic"},
+                            {"label": "dynamic", "value": "dynamic"},
+                            {"label": "MS1", "value": "ms1", "disabled": True}
+                        ], value="static", clearable=False)),
+                        html.Td(dcc.Dropdown(id="correction", clearable=False, value="fdr_bh")),
+                    ]),
+                ], style={"padding": 10, 'width': '100%'}),
+                html.H3("StringDB network"),
+                html.Table([
+                    html.Tr([
+                        html.Td("Required score"),
+                        html.Td("Species", colSpan=2),
+                    ]),
+                    html.Tr([
+                        html.Td(dcc.Input(id="req_score", type="number", min=0, max=1000, step=100, placeholder="default"), style={"width": "30%"}),
+                        html.Td(dcc.Dropdown(id="species", options=[
+                                {"label": "H. sapiens", "value": 9606},
+                                {"label": "M. musculus", "value": 10090},
+                                {"label": "S. cerevisiae", "value": 4932},
+                                {"label": "Custom...", "value": -1}
+                        ], value=9606, clearable=False), style={"width": "25%"}),
+                        html.Td(dcc.Input(id="custom_species", type="number", placeholder="NCBI Taxonomy ID", disabled=True, value=9606, debounce=2), style={"width": "25%"}),
+                        html.Td(html.P(id="species_name", style={"font-style": "italic", "margin": 0}, children=""), style={"width": "25%"})
+                    ]),
+                ], style={"padding": 10, 'width': '100%'})
+            ], open=True),
+            
+            html.Details([
+                html.Summary("Diffacto Parameters"),
+                html.Table([
+                    html.Tr([
+                        html.Td("Normalize"),
+                        html.Td("Impute threshold"),
+                        html.Td("Min samples"),
+                    ]),
+                    html.Tr([
+                        html.Td(dcc.Dropdown(id="dif_normalize", options=['average','median','GMM','None'], value="None", clearable=False)),
+                        html.Td(dcc.Input(id="dif_impute_threshold", type="number", min=0, max=1, step=0.05, value=0)),
+                        html.Td(dcc.Input(id="dif_min_samples", type="number", min=0, max=20, step=1, value=0)),
+                    ]),
+                ], style={"padding": 10, 'width': '100%'}),
+            ], style={'display': 'hidden'}, id="diffacto_div"),
+
+            # Fold change and p-value threshold value sliders with input fields
+            # Not collapsible
+            html.Div([
+                html.H3("Fold Change Threshold"),
+                html.Div([
+                    dcc.Input(id="fold_change_input", type="number", value=1, style={"width": "15%"}),
+                    html.Div(dcc.Slider(
+                        id="fold_change_slider", min=0.5, max=3, step=0.1, value=1, marks={0.5*i: f"{0.5*i}" for i in range(1,7)}
+                    ), style={"width": "80%"}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+                html.H3("P-value Threshold"),
+                html.Div([
+                    dcc.Input(id="pvalue_input", type="number", value=0.01, style={"width": "15%"}),
+                    html.Div(dcc.Slider(
+                        id="pvalue_slider", min=-5, max=-1, step=0.1,
+                        value=-2, marks={i: f"{10**i}" for i in range(-5, 0)}
+                    ), style={"width": "80%"}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+            ]),
+        
+            # A collapsible div with style parameters
+            html.Details([
+                html.Summary("Style Parameters", style={'font-size': '14pt'}),
+                html.Div([
+                    ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
+                    ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
+                    ColorPicker(id="not_color", label="Background points", value={'hex': "#129dfc"}),
+                ], style={"padding": 10, "display": "flex", "flex-direction": "row"})
+            ]),
+
+            # Button to start the analysis
+            html.Button(
+                "Start Analysis", id="start_button", className="start_button",
+                style={'margin-left': 'auto', 'margin-right': 'auto'}
+            ),
+            html.Hr(),
+        ], className="container"),
+        html.Div([
+            # ====== Results ======
+            # Error div
+            dbc.Alert(id="run_error",color="danger", is_open=False),
+            dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
+            dcc.Loading(html.Img(
+                id="string_svg",
+                style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
+            ), type="circle"),
+            html.H3("Differentially Expressed Proteins"),
+            html.Button("Save DE protens", id="save_proteins_button", disabled=True),
+            dcc.Download(id="download_proteins"),
+            dash_table.DataTable(
+                id="result_proteins_table",
+                columns=[
+                    {"name": "Protein", "id": "dbname"},
+                    {"name": "Fold Change", "id": "FC"},
+                    {"name": "p-value", "id": "logFDR"},
+                ],
+                style_header={
+                    'backgroundColor': 'white',
+                    'fontWeight': 'bold',
+                    'color': '#3a1771'
+                },
+                style_cell_conditional=[
+                    {
+                        'if': {'column_id': 'dbname'},
+                        'textAlign': 'left'
+                    },
+                    {
+                        'if': {'filter_query': '{FC} < 0', 'column_id': 'FC'},
+                        'backgroundColor': '#c12424', 'color': 'white'
+                    },
+                    {
+                        'if': {'filter_query': '{FC} > 0', 'column_id': 'FC'},
+                        'backgroundColor': '#24c1a4',
+                    },
+                    {
+                        'if': {'state': 'selected'},
+                        'backgroundColor': '#4b44c5', 'color': 'white'
+                    },
+                ],
+                style_cell={
+                    'overflow': 'hidden', 'textOverflow': 'ellipsis','maxWidth': 0,
+                }
+            ),
+        ])
+    ])
+
+
 def start_webview():
     create_user_files_dirs()
     webview.start()
 
 
+def launch_from_cli():
+    parser = argp.ArgumentParser(
+        description="Visual Interface for qunatification analysis of MS/MS proteomics data",
+        formatter_class=argp.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--format", "-f", help="format of input data. Allowed values: 'Scavager', 's+d', 'MaxQuant', 'DirectMS1Quant', 'Diffacto'", default='Scavager')
+    parser.add_argument("--sample", "-s", help="single file input")
+    parser.add_argument("-s1", help="control files input", nargs='+')
+    parser.add_argument("-s2", help="test files input", nargs='+')
+    args = parser.parse_args()
+    set_layout(app, args)
+    start_webview()
+
+
+def launch_import(s0="", s1="", s2="", fmt="Scavager"):
+    args_dict = {"sample": s0, "s1": s1, "s2": s2, "format": fmt}
+    args = argp.Namespace(
+        **args_dict
+    )
+    set_layout(app, args)
+    start_webview()
+
+
+def launch():
+    args = argp.Namespace(format='Scavager')
+
+
 if __name__ == "__main__":
     # app.run_server(debug=False)
-    start_webview()
+    launch_from_cli()

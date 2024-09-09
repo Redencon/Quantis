@@ -37,7 +37,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['playground\\Quantis_Icon.bmp'],
+    icon=['C:\\Users\\Redencon\\Documents\\PyScripts\\Quantis\\playground\\Quantis_Icon.bmp'],
 )
 coll = COLLECT(
     exe,
