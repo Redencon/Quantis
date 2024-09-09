@@ -1,7 +1,7 @@
 # from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc
-import dash_uploader as du
+# import dash_uploader as du
 from dash_daq.ColorPicker import ColorPicker
 from pathlib import Path
 import pandas as pd
@@ -45,7 +45,7 @@ def resource_path(relative_path):
 
 # app = Dash("Quantis", external_stylesheets=["style.css"])
 app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
-du.configure_upload(app, FILES_PATH, use_upload_id=False)
+# du.configure_upload(app, FILES_PATH, use_upload_id=False)
 
 window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
 
@@ -356,20 +356,20 @@ def generate_sample_file(_, k_data, a_data):
 
 
 # Select files with sample file
-@du.callback(
-    [Output("control_files_table", "data", allow_duplicate=True),
-    Output("test_files_table", "data", allow_duplicate=True)],
-    id="sample_input"
-)
-def load_sample_file(status: du.UploadStatus):
-    if not status.uploaded_files:
-        return no_update, no_update
+# @du.callback(
+#     [Output("control_files_table", "data", allow_duplicate=True),
+#     Output("test_files_table", "data", allow_duplicate=True)],
+#     id="sample_input"
+# )
+# def load_sample_file(status: du.UploadStatus):
+#     if not status.uploaded_files:
+#         return no_update, no_update
     
-    # Load the sample file
-    sdf = pd.read_csv(FILES_PATH / status.uploaded_files[0].name)
-    k_files = [{"path": f} for f in sdf[sdf["Sample"] == "K"]["Path"].tolist()]
-    a_files = [{"path": f} for f in sdf[sdf["Sample"] == "A"]["Path"].tolist()]
-    return k_files, a_files
+#     # Load the sample file
+#     sdf = pd.read_csv(FILES_PATH / status.uploaded_files[0].name)
+#     k_files = [{"path": f} for f in sdf[sdf["Sample"] == "K"]["Path"].tolist()]
+#     a_files = [{"path": f} for f in sdf[sdf["Sample"] == "A"]["Path"].tolist()]
+#     return k_files, a_files
 
 # Enable/disable custom species input
 @callback(
@@ -769,18 +769,18 @@ def set_layout(app: Dash, args: argp.Namespace):
                         ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
                     ], style={"padding": 10, 'flex': 1}),
                 ], style={'display': 'flex', 'flex-direction': 'row'}),
-                dcc.Download(id="download_sample"),
-                html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
-                html.P("Or use a sample file:"),
-                du.Upload(id="sample_input", filetypes=['csv'], text="Upload Sample File", max_files=1),
-                html.Details([
-                    html.Summary("What is sample file?", style={'font-size': '12pt'}),
-                    html.P(
-                        "Sample file is a csv file, containing informtion about input files. "
-                        + "It is expected to have two columns: Path with absolute paths to files "
-                        + "and Sample, containing letters K and A for control and test files respectfully."
-                    )
-                ]),
+                # dcc.Download(id="download_sample"),
+                # html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
+                # html.P("Or use a sample file:"),
+                # du.Upload(id="sample_input", filetypes=['csv'], text="Upload Sample File", max_files=1),
+                # html.Details([
+                #     html.Summary("What is sample file?", style={'font-size': '12pt'}),
+                #     html.P(
+                #         "Sample file is a csv file, containing informtion about input files. "
+                #         + "It is expected to have two columns: Path with absolute paths to files "
+                #         + "and Sample, containing letters K and A for control and test files respectfully."
+                #     )
+                # ]),
             ], style={"diplay": "grid"}, id="multi_input_div"),
             html.Br(),
 
