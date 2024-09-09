@@ -544,7 +544,7 @@ def run_quantis(
 
         else:
             if not single_file:
-                return NULL_PLOT, no_update, no_update, no_update, no_update
+                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update
 
             if input_format == "DirectMS1Quant":
                 data = load_data_directms1quant(single_file)
@@ -950,9 +950,8 @@ def launch_from_cli():
     start_webview()
 
 
-def launch_import(s0=None, s1=None, s2=None, fmt=None):
+def launch_import(s0="", s1="", s2="", fmt="Scavager"):
     args_dict = {"sample": s0, "s1": s1, "s2": s2, "format": fmt}
-    args_dict = {k: v for k, v in args_dict.items() if v is not None}
     args = argp.Namespace(
         **args_dict
     )
