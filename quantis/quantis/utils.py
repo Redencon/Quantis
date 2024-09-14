@@ -109,8 +109,10 @@ def load_data_diffacto(file: str) -> pd.DataFrame:
     Similar to DirectMS1Quant, but without already calculated DE proteins.
     """
     data = pd.read_csv(file, sep='\t')
+    s2 = ('s2' if 's2' in data.columns else 'S2')
+    s1 = ('s1' if 's1' in data.columns else 'S1')
     data['dbname'] = data['Protein']
-    data['FC'] = np.log2(data['S2']/data['S1'])
+    data['FC'] = np.log2(data[s2]/data[s1])
     data['p-value'] = data["P(PECA)"]
     return data[['dbname', 'FC', 'p-value']]
 

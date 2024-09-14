@@ -884,7 +884,7 @@ def set_layout(app: Dash, args: argp.Namespace):
         html.Div([
             # ====== Results ======
             # Error div
-            dbc.Alert(id="run_error",color="danger", is_open=False),
+            dbc.Alert(id="run_error",color="danger", is_open=False, style={'user-select': 'all'}),
             dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
             dcc.Loading(html.Img(
                 id="string_svg",
