@@ -157,8 +157,8 @@ def disable_bonferroni(value):
 # Add files to tables
 @callback(
     Output("lastfiles_K", "value"),
-    Output("input_error", "children"),
-    Output("input_error", "is_open"),
+    Output("input_error", "children", allow_duplicate=True),
+    Output("input_error", "is_open", allow_duplicate=True),
     Input("control_btn_input", "n_clicks"),
     State("input_format", "value"),
     prevent_initial_call=True
@@ -166,7 +166,7 @@ def disable_bonferroni(value):
 def write_control_files(_, format):
     files = open_tsv_files_dialog(window, True) or []
     if format != "s+d":
-        return ";".join(files)
+        return ";".join(files), no_update, no_update
     failed_files = []
     passed_files = []
     for file in files:
@@ -190,13 +190,16 @@ def write_control_files(_, format):
 
 @callback(
     Output("lastfiles_A", "value"),
+    Output("input_error", "children", allow_duplicate=True),
+    Output("input_error", "is_open", allow_duplicate=True),
     Input("test_btn_input", "n_clicks"),
+    State("input_format", "value"),
     prevent_initial_call=True
 )
-def write_test_files(_):
+def write_test_files(_, format):
     files = open_tsv_files_dialog(window, True) or []
     if format != "s+d":
-        return ";".join(files)
+        return ";".join(files), no_update, no_update
     failed_files = []
     passed_files = []
     for file in files:
@@ -401,18 +404,20 @@ def custom_species_name(taxid: str):
 
 # Sync fold change slider and input
 @callback(
-    Output("fold_change_input", "value", allow_duplicate=True),
+    Output("fold_change_input_left", "value", allow_duplicate=True),
+    Output("fold_change_input_right", "value", allow_duplicate=True),
     Output("fold_change_slider", "value"),
-    Input("fold_change_input", "value"),
+    Input("fold_change_input_left", "value"),
+    Input("fold_change_input_right", "value"),
     Input("fold_change_slider", "value"),
     prevent_initial_call=True
 )
-def fc_sync(input_val, slider_val):
+def fc_sync(input_val_l, input_val_r, slider_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
-    if trigger == "fold_change_input":
-        return input_val, input_val
+    if trigger in ["fold_change_input_left", "fold_change_input_right"]:
+        return input_val_l, input_val_r, [input_val_l, input_val_r]
     else:
-        return slider_val, slider_val
+        return slider_val[0], slider_val[1], slider_val
 
 # Sync p-value slider and input
 @callback(
@@ -432,19 +437,20 @@ def pvalue_sync(input_val, slider_val):
 
 # Block sliders on dynamic threshold calculation
 @callback(
-    Output("fold_change_slider", "disabled"),
     Output("pvalue_slider", "disabled"),
-    Output("fold_change_input", "disabled"),
     Output("pvalue_input", "disabled"),
+    Output("fold_change_slider", "disabled"),
+    Output("fold_change_input_left", "disabled"),
+    Output("fold_change_input_right", "disabled"),
     Input("threshold_calculation", "value"),
 )
 def disable_sliders(value):
     if value == "dynamic" or value == "ms1":
-        return True, True, True, True
+        return True, True, True, True, True
     elif value == "semi-dynamic":
-        return False, True, False, True
+        return True, True, False, False, False
     else:
-        return False, False, False, False
+        return False, False, False, False, False
 
 
 NULL_PLOT = {"layout": {
@@ -466,11 +472,13 @@ NULL_PLOT = {"layout": {
     Output("save_proteins_button", "disabled"),
     Output("run_error", "children"),
     Output("run_error", "is_open"),
-    Output("fold_change_input", "value"),
+    Output("fold_change_input_left", "value"),
+    Output("fold_change_input_right", "value"),
     Output("pvalue_input", "value"),
     Input("start_button", "n_clicks"),
     State("executable_path", "value"),
-    State("fold_change_input", "value"),
+    State("fold_change_input_left", "value"),
+    State("fold_change_input_right", "value"),
     State("pvalue_input", "value"),
     State("regulation", "value"),
     State("correction", "value"),
@@ -490,8 +498,8 @@ NULL_PLOT = {"layout": {
     # prevent_initial_call=True,
 )
 def run_quantis(
-    _, exec_str, fc_threshold, pvalue_threshold,
-    regulation, correction,
+    _, exec_str, fc_threshold_l, fc_threshold_r,
+    pvalue_threshold, regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
     column_DT,
@@ -501,14 +509,14 @@ def run_quantis(
     d_norm, d_it, d_ms
 ):
     try:
-        thhs_set = Thresholds(up_fc=fc_threshold, down_fc=-fc_threshold, p_value=-np.log10(pvalue_threshold))
+        thhs_set = Thresholds(up_fc=fc_threshold_r, down_fc=fc_threshold_l, p_value=-np.log10(pvalue_threshold))
         color_scheme: ColorScheme = {'UP': up_color['hex'], 'DOWN': down_color['hex'], 'NOT': not_color['hex']}
 
         if input_format == "s+d":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
             if not exec_str:
-                return NULL_PLOT, no_update, no_update, "No executable file selected", True, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "No executable file selected", True, no_update, no_update, no_update
             cfl = [f["path"] for f in control_files]
             tfl = [f["path"] for f in test_files]
             _hash = hash_parameters(cfl, tfl, imputation, input_format)
@@ -525,7 +533,7 @@ def run_quantis(
 
         if input_format == "Scavager":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
             # Turn files into lists
             cfl = [f["path"] for f in control_files]
             tfl = [f["path"] for f in test_files]
@@ -544,7 +552,7 @@ def run_quantis(
 
         else:
             if not single_file:
-                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update
+                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
             if input_format == "DirectMS1Quant":
                 data = load_data_directms1quant(single_file)
@@ -574,7 +582,7 @@ def run_quantis(
                 thhs_calc = calculate_thresholds(dwt.data)
 
             else:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
 
         if correction == "bonferroni":
             thhs = dwt.thresholds
@@ -583,18 +591,20 @@ def run_quantis(
         dwt = DFwThresholds(dwt.data, thhs)
         dwt, data_de = apply_thresholds(dwt, regulation)
         if input_format in ("DirectMS1Quant", "Diffacto") or threshold_calculation != "static":
-            fct = round(dwt.thresholds.up_fc, 2)
+            fctr = round(dwt.thresholds.up_fc, 2)
+            fctl = round(dwt.thresholds.down_fc, 2)
             pt = round(0.1**dwt.thresholds.p_value, 3)
         else:
-            fct = no_update
+            fctr = no_update
+            fctl = no_update
             pt = no_update
-        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fct, pt
+        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fctl, fctr, pt
     except Exception as e:
         return NULL_PLOT, [], True, [
             html.H2("An error has occured!"),
             # *[html.P(line, style={"padding": "0"}) for line in format_exc(limit=3).split("\n")]
             html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
-        ], True, no_update, no_update
+        ], True, no_update, no_update, no_update
 
 # Show StringDB network
 @callback(
@@ -847,12 +857,13 @@ def set_layout(app: Dash, args: argp.Namespace):
             # Fold change and p-value threshold value sliders with input fields
             # Not collapsible
             html.Div([
-                html.H3("Fold Change Threshold"),
+                html.H3(["Log", html.Sub("2"), "(FC) threshold"]),
                 html.Div([
-                    dcc.Input(id="fold_change_input", type="number", value=1, style={"width": "15%"}),
-                    html.Div(dcc.Slider(
-                        id="fold_change_slider", min=0.5, max=3, step=0.1, value=1, marks={0.5*i: f"{0.5*i}" for i in range(1,7)}
+                    dcc.Input(id="fold_change_input_left", type="number", value=-1, style={"width": "8%"}),
+                    html.Div(dcc.RangeSlider(
+                        id="fold_change_slider", min=-3, max=3, step=0.1, value=[-1, 1], marks={0.5*i: f"{0.5*i}" for i in range(-6,7)}
                     ), style={"width": "80%"}),
+                    dcc.Input(id="fold_change_input_right", type="number", value=1, style={"width": "8%"}),
                 ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
                 html.H3("P-value Threshold"),
                 html.Div([
@@ -945,9 +956,13 @@ def launch_from_cli():
     parser.add_argument("--sample", "-s", help="single file input")
     parser.add_argument("-s1", help="control files input", nargs='+')
     parser.add_argument("-s2", help="test files input", nargs='+')
+    parser.add_argument("--web", help="launch as browser app", action="store_true")
     args = parser.parse_args()
     set_layout(app, args)
-    start_webview()
+    if args.web:
+        app.run(debug=True)
+    else:
+        start_webview()
 
 
 def launch_import(s0="", s1="", s2="", fmt="Scavager"):
