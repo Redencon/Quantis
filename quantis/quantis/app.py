@@ -86,6 +86,9 @@ def hide_show_diffacto(value):
 )
 def show_file_type_description(value):
     if value in FTD:
+        ret = FTD[value]
+        if value == "s+d":
+            return [html.P(ret), html.P("You can get diffacto here:"), html.P("https://github.com/statisticalbiotechnology/diffacto", style={'user-select': 'all', 'color': 'var(--color-primary)'})]
         return FTD[value]
     else:
         return "No description available"
