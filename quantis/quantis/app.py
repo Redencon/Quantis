@@ -455,6 +455,23 @@ def disable_sliders(value):
     else:
         return False, False, False, False, False
 
+# Block start if no files are provided
+@callback(
+    Output("start_button", "disabled"),
+    # Output("start_button", "className"),
+    Input("control_files_table", "data"),
+    Input("test_files_table", "data"),
+    Input("single_file_path", "value"),
+    Input("input_format", "value")
+)
+def disable_start(c_data, t_data, sfp, fmt):
+    mf_fmts = ["s+d", "Scavager"]
+    if fmt in mf_fmts:
+        res = not bool(c_data and t_data)
+    else:
+        res = not bool(sfp)
+    return res
+
 
 NULL_PLOT = {"layout": {
     "xaxis": {"visible": False},
