@@ -53,7 +53,7 @@ def get_annotations(proteins, species):
     return pd.read_csv(BytesIO(res.content), sep="\t")
 
 
-def get_string_ids(proteins, species):
+def get_string_ids(proteins, species) -> list[str]:
     """Get STRING IDs for a set of proteins"""
     output_format = "tsv"
     method = "get_string_ids"

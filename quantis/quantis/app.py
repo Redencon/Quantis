@@ -629,6 +629,7 @@ def run_quantis(
 # Show StringDB network
 @callback(
     Output("string_svg", "src"),
+    Output("annotations_table", "data"),
     Output("run_error", "children", allow_duplicate=True),
     Output("run_error", "is_open", allow_duplicate=True),
     Input("result_proteins_table", "data"),
@@ -651,9 +652,13 @@ def show_string_network(data, inpf: str, rs, sp, csp):
         else:
             proteins = [row["dbname"].split("|")[1] for row in data]
         rs = rs or None
-        return get_string_svg(proteins, sp, rs), no_update, False
+        ids = get_string_ids(proteins, sp)
+        svg = get_string_svg(ids, sp, rs)
+        annots = get_annotations(ids, sp)
+        d_a = annots.to_dict("records")
+        return svg, d_a, no_update, False
     except Exception as e:
-        return no_update, [
+        return no_update, no_update, [
             html.H2("An error has occured!"),
             html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
         ], True
@@ -917,16 +922,28 @@ def set_layout(app: Dash, args: argp.Namespace):
             # Error div
             dbc.Alert(id="run_error",color="danger", is_open=False, style={'user-select': 'all'}),
             dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
-            dcc.Loading(html.Img(
-                id="string_svg",
-                style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
-            ), type="circle"),
-            dash_table.DataTable(
-                id="annotations_table",
-                columns=[
-                    {"name": ""}
-                ]
-            ),
+            dcc.Loading([
+                html.Img(
+                    id="string_svg",
+                    style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
+                ),
+                html.H3("Enriched GO annotations"),
+                dash_table.DataTable(
+                    id="annotations_table",
+                    columns=[
+                        {"name": "Category", "id": "category"},
+                        {"name": "GO Term", "id": "term"},
+                        {"name": "FDR", "id": "fdr"}, 
+                        {"name": "Description", "id": "description"},
+                    ],
+                    style_header={
+                        'backgroundColor': 'white',
+                        'fontWeight': 'bold',
+                        'color': '#3a1771'
+                    },
+                    page_size=20
+                ),
+            ], type="circle"),
             html.H3("Differentially Expressed Proteins"),
             html.Button("Save DE protens", id="save_proteins_button", disabled=True),
             dcc.Download(id="download_proteins"),
