@@ -19,7 +19,7 @@ import webbrowser
 
 from .ncbi_species_parser import fetch_species_name
 from .cash_or_new import hash_parameters, check_existing_data, save_data
-from .string_request import get_string_svg
+from .string_request import get_string_svg, get_annotations, get_string_ids
 from .open_tsv_files_dialog import open_tsv_files_dialog, save_csv_file_dialog, open_exe_files_dialog
 from .utils import *
 from .ms1diffacto import *
@@ -921,6 +921,12 @@ def set_layout(app: Dash, args: argp.Namespace):
                 id="string_svg",
                 style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
             ), type="circle"),
+            dash_table.DataTable(
+                id="annotations_table",
+                columns=[
+                    {"name": ""}
+                ]
+            ),
             html.H3("Differentially Expressed Proteins"),
             html.Button("Save DE protens", id="save_proteins_button", disabled=True),
             dcc.Download(id="download_proteins"),

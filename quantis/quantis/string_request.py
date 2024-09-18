@@ -1,6 +1,10 @@
 """Function to request svg from STRING"""
 import requests as rqt
 import base64
+import pandas as pd
+from io import BytesIO
+
+STRING_API_URL= "https://string-db.org/api/"
 
 def get_string_svg(proteins, species, required_score=None):
     """Get html-injectable svg of a String plot for given set of proteins
@@ -14,10 +18,9 @@ def get_string_svg(proteins, species, required_score=None):
         return ""
     # if len(proteins) > 40:
     #     return ""
-    string_api_url = "https://string-db.org/api/"
     output_format = "svg"
     method = "network"
-    request_url = string_api_url + output_format + "/" + method
+    request_url = STRING_API_URL + output_format + "/" + method
     params = {
     "identifiers" : "%0d".join(proteins), # your protein
     "species": str(species), # species NCBI identifier
@@ -32,3 +35,37 @@ def get_string_svg(proteins, species, required_score=None):
     except rqt.HTTPError as exception:
         raise
     return 'data:image/svg+xml;base64,{}'.format(base64.b64encode(res.content).decode())
+
+
+def get_annotations(proteins, species):
+    """Get GO annotations for a set of proteins"""
+    output_format = "tsv"
+    method = "enrichment"
+    request_url = STRING_API_URL + output_format + "/" + method
+    params = {
+    "identifiers" : "%0d".join(proteins), # your protein
+    "species": str(species), # species NCBI identifier
+    }
+    try:
+        res = rqt.post(request_url, params)
+    except rqt.HTTPError as exception:
+        raise
+    return pd.read_csv(BytesIO(res.content), sep="\t")
+
+
+def get_string_ids(proteins, species):
+    """Get STRING IDs for a set of proteins"""
+    output_format = "tsv"
+    method = "get_string_ids"
+    request_url = STRING_API_URL + output_format + "/" + method
+    params = {
+    "identifiers" : "%0d".join(proteins), # your protein
+    "species": str(species), # species NCBI identifier
+    "limit": 1
+    }
+    try:
+        res = rqt.post(request_url, params)
+    except rqt.HTTPError as exception:
+        raise
+    df = pd.read_csv(BytesIO(res.content), sep="\t")
+    return df['stringId'].tolist()
