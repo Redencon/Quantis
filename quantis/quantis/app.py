@@ -98,9 +98,13 @@ def show_file_type_description(value):
 @callback(
     Output("column_DT", "data"),
     Input("single_file_path", "value"),
+    Input("col_prefix", "value"),
+    Input("btn_prefix", "n_clicks"),
     State("input_format", "value"),
+    State("k_prefix", "value"),
+    State("a_prefix", "value"),
 )
-def fill_col_table(path: str, input_format: str):
+def fill_col_table(path: str, prefix: str, _, input_format: str, k_prefix, a_prefix):
     if input_format != "MaxQuant":
         return no_update
     if not path:
@@ -108,9 +112,13 @@ def fill_col_table(path: str, input_format: str):
     with open(path) as f:
         fline = f.readline()
     cols = fline.split("\t")
-    iBAQ_cols = [col for col in cols if "iBAQ" in col and col != "iBAQ"]
-    labels = [col.split(" ")[1] for col in iBAQ_cols]
-    return [{"col": col, "kan": "N"} for col in labels]
+    iBAQ_cols = [col for col in cols if prefix in col and col != prefix]
+    labels = [col.strip(prefix+" ") for col in iBAQ_cols]
+    return [{"col": col, "kan": (
+        "K" if k_prefix and k_prefix in col else (
+            "A" if a_prefix and a_prefix in col else "N"
+        )
+    )} for col in labels]
 
 
 # Disable threshold type and sliders for DirectMS1Quant
@@ -506,6 +514,7 @@ NULL_PLOT = {"layout": {
     State("control_files_table", "data"),
     State("test_files_table", "data"),
     State("single_file_path", "value"),
+    State("col_prefix", "value"),
     State("column_DT", "data"),
     State("imputation", "value"),
     State("up_color", "value"),
@@ -522,7 +531,7 @@ def run_quantis(
     pvalue_threshold, regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
-    column_DT,
+    col_prefix, column_DT,
     imputation,
     up_color, down_color, not_color,
     input_format,
@@ -587,8 +596,8 @@ def run_quantis(
                 thhs_calc = calculate_thresholds(dwt.data)
 
             elif input_format == "MaxQuant":
-                K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
-                A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
+                K_cols = [col_prefix+" "+col["col"] for col in column_DT if col["kan"] == "K"]
+                A_cols = [col_prefix+" "+col["col"] for col in column_DT if col["kan"] == "A"]
                 _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
                 data = check_existing_data(_hash, str(CACHE_PATH))
                 if data is None:
@@ -647,8 +656,8 @@ def show_string_network(data, inpf: str, rs, sp, csp):
             return no_update
         if inpf == "MaxQuant":
             import re
-            template = re.compile(r"|([A-Z][0-9]+)|")
-            proteins = [re.findall(template, row["dbname"])[0] for row in data]
+            template = re.compile(r"\|([A-Z][0-9]+)\|")
+            proteins = [row["dbname"].split("|")[1] for row in data]
         else:
             proteins = [row["dbname"].split("|")[1] for row in data]
         rs = rs or None
@@ -741,7 +750,16 @@ def set_layout(app: Dash, args: argp.Namespace):
             html.Div([
                 html.Button("Upload score file", id='single_input_btn', className="upload_button"),
                 dcc.Input(id="single_file_path", value=(args.sample or ""), placeholder="No file selected", disabled=True, className="path_input"),
-                html.Div(dash_table.DataTable(
+                html.Div([
+                    html.P("Control prefix"),
+                    dcc.Input(id="k_prefix", style={"width": "30%"}),
+                    html.P("Test prefix"),
+                    dcc.Input(id="a_prefix", style={"width": "30%"}),
+                    html.Button("Apply", id="btn_prefix", className="exec_button", style={"width": "15%"})
+                ], style={"display": "flex", "justify-content": "space-between"}),
+                html.Div([
+                    dcc.Dropdown(id="col_prefix", options=["iBAQ", "Intensity", "Sequence coverage", "Unique peptides"], value="iBAQ", clearable=False),
+                    dash_table.DataTable(
                     id="column_DT",
                     columns=[
                         {'id': 'col', 'name': 'Label', 'editable': False},
@@ -759,7 +777,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     page_action='native',
                     page_current=0,
                     cell_selectable=False
-                ), style={'display': 'hidden'}, id="maxquant_table_div")
+                )], style={'display': 'hidden'}, id="maxquant_table_div")
             ], style={"diplay": "hidden"}, id="single_input_div"),
             # Div for multiple files input
             html.Div([
@@ -768,7 +786,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     html.Div([
                         dcc.Input(id="executable_path", type="text", placeholder="Path to Executable", disabled=True, style={'width': '100%'}),
                         html.Button("Browse", id="executable_btn", className="exec_button"),
-                    ], style={'display': 'flex', 'flex-direction': 'row'}),
+                    ], style={'display': 'flex', 'flex-direction': 'row', "justify-content": "space-between"}),
                 ], style={"display": "hidden"}, id="executable_div"),
                 html.Div([
                     html.Div([
@@ -803,7 +821,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                             html.Button("Remove all", id="rm_A_all_btn", className="rm_button"),
                         ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
                     ], style={"padding": 10, 'flex': 1}),
-                ], style={'display': 'flex', 'flex-direction': 'row'}),
+                ], style={'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
                 # dcc.Download(id="download_sample"),
                 # html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
                 # html.P("Or use a sample file:"),
@@ -853,6 +871,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                         html.Td(dcc.Input(id="req_score", type="number", min=0, max=1000, step=100, placeholder="default"), style={"width": "30%"}),
                         html.Td(dcc.Dropdown(id="species", options=[
                                 {"label": "H. sapiens", "value": 9606},
+                                {"label": "E. coli", "value": 562},
                                 {"label": "M. musculus", "value": 10090},
                                 {"label": "S. cerevisiae", "value": 4932},
                                 {"label": "Custom...", "value": -1}
@@ -889,7 +908,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                         id="fold_change_slider", min=-3, max=3, step=0.1, value=[-1, 1], marks={0.5*i: f"{0.5*i}" for i in range(-6,7)}
                     ), style={"width": "80%"}),
                     dcc.Input(id="fold_change_input_right", type="number", value=1, style={"width": "8%"}),
-                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
                 html.H3("P-value Threshold"),
                 html.Div([
                     dcc.Input(id="pvalue_input", type="number", value=0.01, style={"width": "15%"}),
@@ -897,7 +916,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                         id="pvalue_slider", min=-5, max=-1, step=0.1,
                         value=-2, marks={i: f"{10**i}" for i in range(-5, 0)}
                     ), style={"width": "80%"}),
-                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
             ]),
         
             # A collapsible div with style parameters
@@ -907,7 +926,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
                     ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
                     ColorPicker(id="not_color", label="Background points", value={'hex': "#129dfc"}),
-                ], style={"padding": 10, "display": "flex", "flex-direction": "row"})
+                ], style={"padding": 10, "display": "flex", "flex-direction": "row", "justify-content": "space-between"})
             ]),
 
             # Button to start the analysis

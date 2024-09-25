@@ -67,5 +67,9 @@ def get_string_ids(proteins, species) -> list[str]:
         res = rqt.post(request_url, params)
     except rqt.HTTPError as exception:
         raise
+    if "Error" in str(res):
+        raise ValueError("StringDB request resulted in error:\n{}".format(str(res)))
     df = pd.read_csv(BytesIO(res.content), sep="\t")
+    if 'stringId' not in df.columns:
+        raise ValueError("stringId column not found. DataFrame columns:\n{}\n\n{}".format(df.columns, df))
     return df['stringId'].tolist()

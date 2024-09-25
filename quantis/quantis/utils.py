@@ -31,6 +31,7 @@ from .knn_imputation import knn_impute
 from .df_prep import load_from_lists
 
 from typing import TypedDict, NamedTuple, Literal
+import webbrowser
 
 class DEProtein(TypedDict):
     """DE protein data entry."""
@@ -122,15 +123,15 @@ def impute_missing_values(ogdf: OneGroupDF, method: str) -> pd.DataFrame:
     This step is required for Scavager and MaxQuant.
     Imputation method should be specified.
     """
+    data = ogdf.data[ogdf.NSAF_cols+["dbname"]].map(lambda v: v if v != 0 else None)
     if method == "Drop":
-        data = ogdf.data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
+        data = data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
     elif method == "Min":
-        data = ogdf.data
         for col in ogdf.NSAF_cols:
             min_val = ogdf.data[col].min()
             data[col] = data[col].fillna(min_val)
     else:
-        data_NSAF = ogdf.data.set_index('dbname')[ogdf.NSAF_cols]
+        data_NSAF = data.set_index('dbname')[ogdf.NSAF_cols]
         data_NSAF = knn_impute(data_NSAF)
         data = data_NSAF.reset_index().merge(ogdf.data[['dbname', 'description']], on='dbname', how='left')
     return data
@@ -247,3 +248,7 @@ def build_volcano_plot(
     vp.add_vline(x=dwt.thresholds.up_fc, line_dash="dash", line_color="gray")
     vp.add_vline(x=dwt.thresholds.down_fc, line_dash="dash", line_color="gray")
     return vp
+
+def open_protein_in_uniprot(uniprot_id: str) -> None:
+    url = "https://www.uniprot.org/uniprot/"+uniprot_id
+    webbrowser.open(url)
