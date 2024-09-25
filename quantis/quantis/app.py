@@ -656,8 +656,8 @@ def show_string_network(data, inpf: str, rs, sp, csp):
             return no_update
         if inpf == "MaxQuant":
             import re
-            template = re.compile(r"\|([A-Z][0-9]+)\|")
-            proteins = [row["dbname"].split("|")[1] for row in data]
+            template = re.compile(r"sp\|([A-Z0-9]+)")
+            proteins = [re.findall(template, row["dbname"])[0] for row in data]
         else:
             proteins = [row["dbname"].split("|")[1] for row in data]
         rs = rs or None
@@ -698,6 +698,24 @@ def open_uniprot_browser(active_cell, data):
     if active_cell is None:
         return no_update
     dbname = data[active_cell["row"]]["dbname"]
+    uniprot_id = re.findall(r"sp\|([A-Z0-9]+)", dbname)[0]
+    if uniprot_id:
+        webbrowser.open(f"https://www.uniprot.org/uniprot/{uniprot_id}")
+    return None
+
+# On DE proteins graph click, open Uniprot in browser with protein ID
+@callback(
+    Input("volcano_plot", "clickData"),
+    prevent_initial_call=True
+)
+def open_uniprot_browser_graph(data):
+    if not data:
+        return no_update
+    points = data["points"]
+    if not points:
+        return no_update
+    point = points[0]
+    dbname = point["customdata"][0]
     uniprot_id = re.findall(r"sp\|([A-Z0-9]+)", dbname)[0]
     if uniprot_id:
         webbrowser.open(f"https://www.uniprot.org/uniprot/{uniprot_id}")
@@ -751,14 +769,14 @@ def set_layout(app: Dash, args: argp.Namespace):
                 html.Button("Upload score file", id='single_input_btn', className="upload_button"),
                 dcc.Input(id="single_file_path", value=(args.sample or ""), placeholder="No file selected", disabled=True, className="path_input"),
                 html.Div([
-                    html.P("Control prefix"),
-                    dcc.Input(id="k_prefix", style={"width": "30%"}),
-                    html.P("Test prefix"),
-                    dcc.Input(id="a_prefix", style={"width": "30%"}),
-                    html.Button("Apply", id="btn_prefix", className="exec_button", style={"width": "15%"})
-                ], style={"display": "flex", "justify-content": "space-between"}),
-                html.Div([
                     dcc.Dropdown(id="col_prefix", options=["iBAQ", "Intensity", "Sequence coverage", "Unique peptides"], value="iBAQ", clearable=False),
+                    html.Div([
+                        html.P("Control prefix"),
+                        dcc.Input(id="k_prefix", style={"width": "30%"}),
+                        html.P("Test prefix"),
+                        dcc.Input(id="a_prefix", style={"width": "30%"}),
+                        html.Button("Apply", id="btn_prefix", className="exec_button", style={"width": "15%"})
+                    ], style={"display": "flex", "justify-content": "space-between"}),
                     dash_table.DataTable(
                     id="column_DT",
                     columns=[

@@ -238,11 +238,11 @@ def build_volcano_plot(
         dwt.data, x='FC', y='logFDR', color='regulation',
         labels={'regulation': 'Regulation', 'FC': 'Fold Change', 'logFDR': '-log10(FDR)'},
         color_discrete_map=color_scheme, height=750, title='Volcano Plot', opacity=0.8,
-        range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}
+        range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}, custom_data=["dbname"]
     )
     vp.update_layout(
         title_font_family="Montserrat",
-        font_family="Montserrat"
+        font_family="Montserrat",
     )
     vp.add_hline(y=dwt.thresholds.p_value, line_dash="dash", line_color="gray")
     vp.add_vline(x=dwt.thresholds.up_fc, line_dash="dash", line_color="gray")
