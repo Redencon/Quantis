@@ -144,13 +144,18 @@ def calculate_fold_change_p_value(tgdf: TwoGroupDF) -> pd.DataFrame:
     """
     data = tgdf.data
     data['FC'] = np.log2(data[tgdf.A_cols].mean(axis=1) / data[tgdf.K_cols].mean(axis=1))
-    data['p-value'] =  data.apply(
-        lambda row: ttest_ind(
-            [row[column] for column in tgdf.K_cols],
-            [row[column] for column in tgdf.A_cols]
-        ).pvalue,  # type: ignore
-        axis=1
-        )
+    def calc_pv(row):
+        vals_k = [row[column] for column in tgdf.K_cols]
+        vals_a = [row[column] for column in tgdf.A_cols]
+        
+        if len(set(vals_a)) == 1 or len(set(vals_k)) == 1:
+            return 1
+        v = ttest_ind(vals_a, vals_k).pvalue  # type: ignore
+        if v == 0:
+            print(vals_k, vals_a)
+            raise RuntimeError
+        return v
+    data['p-value'] = data.apply(calc_pv, axis=1)
     return data
 
 

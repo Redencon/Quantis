@@ -50,7 +50,7 @@ def get_annotations(proteins, species):
         res = rqt.post(request_url, params)
     except rqt.HTTPError as exception:
         raise
-    return pd.read_csv(BytesIO(res.content), sep="\t")
+    return pd.read_csv(BytesIO(res.content), sep="\t").sort_values("fdr")
 
 
 def get_string_ids(proteins, species) -> list[str]:
