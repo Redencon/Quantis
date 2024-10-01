@@ -1,4 +1,8 @@
-"""Fetch species name by taxonomy ID from NCBI database."""
+"""Fetch species name by taxonomy ID from NCBI database.
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 import requests
 import xml.etree.ElementTree as ET
 

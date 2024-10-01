@@ -1,3 +1,9 @@
+"""knn imputation for nsaf columns
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
+
 from sklearn.impute import KNNImputer
 import pandas as pd
 

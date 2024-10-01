@@ -1,3 +1,9 @@
+"""The Quantis app layout and Dash callbacks
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
+
 # from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc
@@ -19,7 +25,7 @@ import webbrowser
 
 from .ncbi_species_parser import fetch_species_name
 from .cash_or_new import hash_parameters, check_existing_data, save_data
-from .string_request import get_string_svg
+from .string_request import get_string_svg, get_annotations, get_string_ids
 from .open_tsv_files_dialog import open_tsv_files_dialog, save_csv_file_dialog, open_exe_files_dialog
 from .utils import *
 from .ms1diffacto import *
@@ -86,6 +92,9 @@ def hide_show_diffacto(value):
 )
 def show_file_type_description(value):
     if value in FTD:
+        ret = FTD[value]
+        if value == "s+d":
+            return [html.P(ret), html.P("You can get diffacto here:"), html.P("https://github.com/statisticalbiotechnology/diffacto", style={'user-select': 'all', 'color': 'var(--color-primary)'})]
         return FTD[value]
     else:
         return "No description available"
@@ -95,9 +104,13 @@ def show_file_type_description(value):
 @callback(
     Output("column_DT", "data"),
     Input("single_file_path", "value"),
+    Input("col_prefix", "value"),
+    Input("btn_prefix", "n_clicks"),
     State("input_format", "value"),
+    State("k_prefix", "value"),
+    State("a_prefix", "value"),
 )
-def fill_col_table(path: str, input_format: str):
+def fill_col_table(path: str, prefix: str, _, input_format: str, k_prefix, a_prefix):
     if input_format != "MaxQuant":
         return no_update
     if not path:
@@ -105,9 +118,13 @@ def fill_col_table(path: str, input_format: str):
     with open(path) as f:
         fline = f.readline()
     cols = fline.split("\t")
-    iBAQ_cols = [col for col in cols if "iBAQ" in col and col != "iBAQ"]
-    labels = [col.split(" ")[1] for col in iBAQ_cols]
-    return [{"col": col, "kan": "N"} for col in labels]
+    iBAQ_cols = [col for col in cols if prefix in col and col != prefix]
+    labels = [col.strip(prefix+" ") for col in iBAQ_cols]
+    return [{"col": col, "kan": (
+        "K" if k_prefix and k_prefix in col else (
+            "A" if a_prefix and a_prefix in col else "N"
+        )
+    )} for col in labels]
 
 
 # Disable threshold type and sliders for DirectMS1Quant
@@ -157,8 +174,8 @@ def disable_bonferroni(value):
 # Add files to tables
 @callback(
     Output("lastfiles_K", "value"),
-    Output("input_error", "children"),
-    Output("input_error", "is_open"),
+    Output("input_error", "children", allow_duplicate=True),
+    Output("input_error", "is_open", allow_duplicate=True),
     Input("control_btn_input", "n_clicks"),
     State("input_format", "value"),
     prevent_initial_call=True
@@ -166,7 +183,7 @@ def disable_bonferroni(value):
 def write_control_files(_, format):
     files = open_tsv_files_dialog(window, True) or []
     if format != "s+d":
-        return ";".join(files)
+        return ";".join(files), no_update, no_update
     failed_files = []
     passed_files = []
     for file in files:
@@ -190,13 +207,16 @@ def write_control_files(_, format):
 
 @callback(
     Output("lastfiles_A", "value"),
+    Output("input_error", "children", allow_duplicate=True),
+    Output("input_error", "is_open", allow_duplicate=True),
     Input("test_btn_input", "n_clicks"),
+    State("input_format", "value"),
     prevent_initial_call=True
 )
-def write_test_files(_):
+def write_test_files(_, format):
     files = open_tsv_files_dialog(window, True) or []
     if format != "s+d":
-        return ";".join(files)
+        return ";".join(files), no_update, no_update
     failed_files = []
     passed_files = []
     for file in files:
@@ -401,18 +421,20 @@ def custom_species_name(taxid: str):
 
 # Sync fold change slider and input
 @callback(
-    Output("fold_change_input", "value", allow_duplicate=True),
+    Output("fold_change_input_left", "value", allow_duplicate=True),
+    Output("fold_change_input_right", "value", allow_duplicate=True),
     Output("fold_change_slider", "value"),
-    Input("fold_change_input", "value"),
+    Input("fold_change_input_left", "value"),
+    Input("fold_change_input_right", "value"),
     Input("fold_change_slider", "value"),
     prevent_initial_call=True
 )
-def fc_sync(input_val, slider_val):
+def fc_sync(input_val_l, input_val_r, slider_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
-    if trigger == "fold_change_input":
-        return input_val, input_val
+    if trigger in ["fold_change_input_left", "fold_change_input_right"]:
+        return input_val_l, input_val_r, [input_val_l, input_val_r]
     else:
-        return slider_val, slider_val
+        return slider_val[0], slider_val[1], slider_val
 
 # Sync p-value slider and input
 @callback(
@@ -432,19 +454,37 @@ def pvalue_sync(input_val, slider_val):
 
 # Block sliders on dynamic threshold calculation
 @callback(
-    Output("fold_change_slider", "disabled"),
     Output("pvalue_slider", "disabled"),
-    Output("fold_change_input", "disabled"),
     Output("pvalue_input", "disabled"),
+    Output("fold_change_slider", "disabled"),
+    Output("fold_change_input_left", "disabled"),
+    Output("fold_change_input_right", "disabled"),
     Input("threshold_calculation", "value"),
 )
 def disable_sliders(value):
     if value == "dynamic" or value == "ms1":
-        return True, True, True, True
+        return True, True, True, True, True
     elif value == "semi-dynamic":
-        return False, True, False, True
+        return True, True, False, False, False
     else:
-        return False, False, False, False
+        return False, False, False, False, False
+
+# Block start if no files are provided
+@callback(
+    Output("start_button", "disabled"),
+    # Output("start_button", "className"),
+    Input("control_files_table", "data"),
+    Input("test_files_table", "data"),
+    Input("single_file_path", "value"),
+    Input("input_format", "value")
+)
+def disable_start(c_data, t_data, sfp, fmt):
+    mf_fmts = ["s+d", "Scavager"]
+    if fmt in mf_fmts:
+        res = not bool(c_data and t_data)
+    else:
+        res = not bool(sfp)
+    return res
 
 
 NULL_PLOT = {"layout": {
@@ -466,11 +506,13 @@ NULL_PLOT = {"layout": {
     Output("save_proteins_button", "disabled"),
     Output("run_error", "children"),
     Output("run_error", "is_open"),
-    Output("fold_change_input", "value"),
+    Output("fold_change_input_left", "value"),
+    Output("fold_change_input_right", "value"),
     Output("pvalue_input", "value"),
     Input("start_button", "n_clicks"),
     State("executable_path", "value"),
-    State("fold_change_input", "value"),
+    State("fold_change_input_left", "value"),
+    State("fold_change_input_right", "value"),
     State("pvalue_input", "value"),
     State("regulation", "value"),
     State("correction", "value"),
@@ -478,6 +520,7 @@ NULL_PLOT = {"layout": {
     State("control_files_table", "data"),
     State("test_files_table", "data"),
     State("single_file_path", "value"),
+    State("col_prefix", "value"),
     State("column_DT", "data"),
     State("imputation", "value"),
     State("up_color", "value"),
@@ -490,25 +533,25 @@ NULL_PLOT = {"layout": {
     # prevent_initial_call=True,
 )
 def run_quantis(
-    _, exec_str, fc_threshold, pvalue_threshold,
-    regulation, correction,
+    _, exec_str, fc_threshold_l, fc_threshold_r,
+    pvalue_threshold, regulation, correction,
     threshold_calculation,
     control_files, test_files, single_file,
-    column_DT,
+    col_prefix, column_DT,
     imputation,
     up_color, down_color, not_color,
     input_format,
     d_norm, d_it, d_ms
 ):
     try:
-        thhs_set = Thresholds(up_fc=fc_threshold, down_fc=-fc_threshold, p_value=-np.log10(pvalue_threshold))
+        thhs_set = Thresholds(up_fc=fc_threshold_r, down_fc=fc_threshold_l, p_value=-np.log10(pvalue_threshold))
         color_scheme: ColorScheme = {'UP': up_color['hex'], 'DOWN': down_color['hex'], 'NOT': not_color['hex']}
 
         if input_format == "s+d":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
             if not exec_str:
-                return NULL_PLOT, no_update, no_update, "No executable file selected", True, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "No executable file selected", True, no_update, no_update, no_update
             cfl = [f["path"] for f in control_files]
             tfl = [f["path"] for f in test_files]
             _hash = hash_parameters(cfl, tfl, imputation, input_format)
@@ -525,7 +568,7 @@ def run_quantis(
 
         if input_format == "Scavager":
             if not control_files or not test_files:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
             # Turn files into lists
             cfl = [f["path"] for f in control_files]
             tfl = [f["path"] for f in test_files]
@@ -544,7 +587,7 @@ def run_quantis(
 
         else:
             if not single_file:
-                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update
+                return NULL_PLOT, no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
             if input_format == "DirectMS1Quant":
                 data = load_data_directms1quant(single_file)
@@ -559,8 +602,8 @@ def run_quantis(
                 thhs_calc = calculate_thresholds(dwt.data)
 
             elif input_format == "MaxQuant":
-                K_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "K"]
-                A_cols = ["iBAQ "+col["col"] for col in column_DT if col["kan"] == "A"]
+                K_cols = [col_prefix+" "+col["col"] for col in column_DT if col["kan"] == "K"]
+                A_cols = [col_prefix+" "+col["col"] for col in column_DT if col["kan"] == "A"]
                 _hash = hash_parameters(single_file, K_cols+A_cols, "None", input_format)
                 data = check_existing_data(_hash, str(CACHE_PATH))
                 if data is None:
@@ -574,7 +617,7 @@ def run_quantis(
                 thhs_calc = calculate_thresholds(dwt.data)
 
             else:
-                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update
+                return NULL_PLOT, no_update, no_update, "", False, no_update, no_update, no_update
 
         if correction == "bonferroni":
             thhs = dwt.thresholds
@@ -583,22 +626,25 @@ def run_quantis(
         dwt = DFwThresholds(dwt.data, thhs)
         dwt, data_de = apply_thresholds(dwt, regulation)
         if input_format in ("DirectMS1Quant", "Diffacto") or threshold_calculation != "static":
-            fct = round(dwt.thresholds.up_fc, 2)
+            fctr = round(dwt.thresholds.up_fc, 2)
+            fctl = round(dwt.thresholds.down_fc, 2)
             pt = round(0.1**dwt.thresholds.p_value, 3)
         else:
-            fct = no_update
+            fctr = no_update
+            fctl = no_update
             pt = no_update
-        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fct, pt
+        return build_volcano_plot(dwt, color_scheme), data_de.to_dict("records"), False, "", False, fctl, fctr, pt
     except Exception as e:
         return NULL_PLOT, [], True, [
             html.H2("An error has occured!"),
             # *[html.P(line, style={"padding": "0"}) for line in format_exc(limit=3).split("\n")]
             html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
-        ], True, no_update, no_update
+        ], True, no_update, no_update, no_update
 
 # Show StringDB network
 @callback(
     Output("string_svg", "src"),
+    Output("annotations_table", "data"),
     Output("run_error", "children", allow_duplicate=True),
     Output("run_error", "is_open", allow_duplicate=True),
     Input("result_proteins_table", "data"),
@@ -616,14 +662,18 @@ def show_string_network(data, inpf: str, rs, sp, csp):
             return no_update
         if inpf == "MaxQuant":
             import re
-            template = re.compile(r"|([A-Z][0-9]+)|")
+            template = re.compile(r"sp\|([A-Z0-9]+)")
             proteins = [re.findall(template, row["dbname"])[0] for row in data]
         else:
             proteins = [row["dbname"].split("|")[1] for row in data]
         rs = rs or None
-        return get_string_svg(proteins, sp, rs), no_update, False
+        ids = get_string_ids(proteins, sp)
+        svg = get_string_svg(ids, sp, rs)
+        annots = get_annotations(ids, sp)
+        d_a = annots.to_dict("records")
+        return svg, d_a, no_update, False
     except Exception as e:
-        return no_update, [
+        return no_update, no_update, [
             html.H2("An error has occured!"),
             html.Code(format_exc(limit=3), style={"white-space": "pre-wrap"})
         ], True
@@ -654,6 +704,24 @@ def open_uniprot_browser(active_cell, data):
     if active_cell is None:
         return no_update
     dbname = data[active_cell["row"]]["dbname"]
+    uniprot_id = re.findall(r"sp\|([A-Z0-9]+)", dbname)[0]
+    if uniprot_id:
+        webbrowser.open(f"https://www.uniprot.org/uniprot/{uniprot_id}")
+    return None
+
+# On DE proteins graph click, open Uniprot in browser with protein ID
+@callback(
+    Input("volcano_plot", "clickData"),
+    prevent_initial_call=True
+)
+def open_uniprot_browser_graph(data):
+    if not data:
+        return no_update
+    points = data["points"]
+    if not points:
+        return no_update
+    point = points[0]
+    dbname = point["customdata"][0]
     uniprot_id = re.findall(r"sp\|([A-Z0-9]+)", dbname)[0]
     if uniprot_id:
         webbrowser.open(f"https://www.uniprot.org/uniprot/{uniprot_id}")
@@ -706,7 +774,16 @@ def set_layout(app: Dash, args: argp.Namespace):
             html.Div([
                 html.Button("Upload score file", id='single_input_btn', className="upload_button"),
                 dcc.Input(id="single_file_path", value=(args.sample or ""), placeholder="No file selected", disabled=True, className="path_input"),
-                html.Div(dash_table.DataTable(
+                html.Div([
+                    dcc.Dropdown(id="col_prefix", options=["iBAQ", "Intensity", "Sequence coverage", "Unique peptides"], value="iBAQ", clearable=False),
+                    html.Div([
+                        html.P("Control prefix"),
+                        dcc.Input(id="k_prefix", style={"width": "30%"}),
+                        html.P("Test prefix"),
+                        dcc.Input(id="a_prefix", style={"width": "30%"}),
+                        html.Button("Apply", id="btn_prefix", className="exec_button", style={"width": "15%"})
+                    ], style={"display": "flex", "justify-content": "space-between"}),
+                    dash_table.DataTable(
                     id="column_DT",
                     columns=[
                         {'id': 'col', 'name': 'Label', 'editable': False},
@@ -724,7 +801,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     page_action='native',
                     page_current=0,
                     cell_selectable=False
-                ), style={'display': 'hidden'}, id="maxquant_table_div")
+                )], style={'display': 'hidden'}, id="maxquant_table_div")
             ], style={"diplay": "hidden"}, id="single_input_div"),
             # Div for multiple files input
             html.Div([
@@ -733,7 +810,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     html.Div([
                         dcc.Input(id="executable_path", type="text", placeholder="Path to Executable", disabled=True, style={'width': '100%'}),
                         html.Button("Browse", id="executable_btn", className="exec_button"),
-                    ], style={'display': 'flex', 'flex-direction': 'row'}),
+                    ], style={'display': 'flex', 'flex-direction': 'row', "justify-content": "space-between"}),
                 ], style={"display": "hidden"}, id="executable_div"),
                 html.Div([
                     html.Div([
@@ -768,7 +845,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                             html.Button("Remove all", id="rm_A_all_btn", className="rm_button"),
                         ], style={'display': 'flex', 'flex-direction': 'row', 'justify-content': 'space-between'}),
                     ], style={"padding": 10, 'flex': 1}),
-                ], style={'display': 'flex', 'flex-direction': 'row'}),
+                ], style={'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
                 # dcc.Download(id="download_sample"),
                 # html.Button("Generate Sample File", id="sample_gen_btn", className="download_button"),
                 # html.P("Or use a sample file:"),
@@ -818,6 +895,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                         html.Td(dcc.Input(id="req_score", type="number", min=0, max=1000, step=100, placeholder="default"), style={"width": "30%"}),
                         html.Td(dcc.Dropdown(id="species", options=[
                                 {"label": "H. sapiens", "value": 9606},
+                                {"label": "E. coli", "value": 562},
                                 {"label": "M. musculus", "value": 10090},
                                 {"label": "S. cerevisiae", "value": 4932},
                                 {"label": "Custom...", "value": -1}
@@ -847,13 +925,14 @@ def set_layout(app: Dash, args: argp.Namespace):
             # Fold change and p-value threshold value sliders with input fields
             # Not collapsible
             html.Div([
-                html.H3("Fold Change Threshold"),
+                html.H3(["Log", html.Sub("2"), "(FC) threshold"]),
                 html.Div([
-                    dcc.Input(id="fold_change_input", type="number", value=1, style={"width": "15%"}),
-                    html.Div(dcc.Slider(
-                        id="fold_change_slider", min=0.5, max=3, step=0.1, value=1, marks={0.5*i: f"{0.5*i}" for i in range(1,7)}
+                    dcc.Input(id="fold_change_input_left", type="number", value=-1, style={"width": "8%"}),
+                    html.Div(dcc.RangeSlider(
+                        id="fold_change_slider", min=-3, max=3, step=0.1, value=[-1, 1], marks={0.5*i: f"{0.5*i}" for i in range(-6,7)}
                     ), style={"width": "80%"}),
-                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+                    dcc.Input(id="fold_change_input_right", type="number", value=1, style={"width": "8%"}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
                 html.H3("P-value Threshold"),
                 html.Div([
                     dcc.Input(id="pvalue_input", type="number", value=0.01, style={"width": "15%"}),
@@ -861,7 +940,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                         id="pvalue_slider", min=-5, max=-1, step=0.1,
                         value=-2, marks={i: f"{10**i}" for i in range(-5, 0)}
                     ), style={"width": "80%"}),
-                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row'}),
+                ], style={"padding": 10, 'display': 'flex', 'flex-direction': 'row',  "justify-content": "space-between"}),
             ]),
         
             # A collapsible div with style parameters
@@ -871,7 +950,7 @@ def set_layout(app: Dash, args: argp.Namespace):
                     ColorPicker(id="up_color", label="UP points", value={'hex': "#890c0c"}),
                     ColorPicker(id="down_color", label="DOWN points", value={'hex': "#42640a"}),
                     ColorPicker(id="not_color", label="Background points", value={'hex': "#129dfc"}),
-                ], style={"padding": 10, "display": "flex", "flex-direction": "row"})
+                ], style={"padding": 10, "display": "flex", "flex-direction": "row", "justify-content": "space-between"})
             ]),
 
             # Button to start the analysis
@@ -884,12 +963,30 @@ def set_layout(app: Dash, args: argp.Namespace):
         html.Div([
             # ====== Results ======
             # Error div
-            dbc.Alert(id="run_error",color="danger", is_open=False),
+            dbc.Alert(id="run_error",color="danger", is_open=False, style={'user-select': 'all'}),
             dcc.Loading(dcc.Graph(id="volcano_plot"), type="graph"),
-            dcc.Loading(html.Img(
-                id="string_svg",
-                style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
-            ), type="circle"),
+            dcc.Loading([
+                html.Img(
+                    id="string_svg",
+                    style={"display": "block", "margin-left": "auto", "margin-right": "auto", 'max-width': '100%'}
+                ),
+                html.H3("Enriched GO annotations"),
+                dash_table.DataTable(
+                    id="annotations_table",
+                    columns=[
+                        {"name": "Category", "id": "category"},
+                        {"name": "GO Term", "id": "term"},
+                        {"name": "FDR", "id": "fdr"}, 
+                        {"name": "Description", "id": "description"},
+                    ],
+                    style_header={
+                        'backgroundColor': 'white',
+                        'fontWeight': 'bold',
+                        'color': '#3a1771'
+                    },
+                    page_size=20
+                ),
+            ], type="circle"),
             html.H3("Differentially Expressed Proteins"),
             html.Button("Save DE protens", id="save_proteins_button", disabled=True),
             dcc.Download(id="download_proteins"),
@@ -945,9 +1042,13 @@ def launch_from_cli():
     parser.add_argument("--sample", "-s", help="single file input")
     parser.add_argument("-s1", help="control files input", nargs='+')
     parser.add_argument("-s2", help="test files input", nargs='+')
+    parser.add_argument("--web", help="launch as browser app", action="store_true")
     args = parser.parse_args()
     set_layout(app, args)
-    start_webview()
+    if args.web:
+        app.run(debug=True)
+    else:
+        start_webview()
 
 
 def launch_import(s0="", s1="", s2="", fmt="Scavager"):

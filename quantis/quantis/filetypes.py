@@ -1,3 +1,9 @@
+"""Descriptions for supported filetypes
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
+
 descriptions = {
     "Scavager": "Expected files are '..._proteins_groups.tsv' files, gropued by sample type.",
     "s+d": "Expected files are '..._proteins.tsv', '..._PFMs_ML.tsv', '..._PFMs.tsv' files for each techrep, grouped by sample type.",

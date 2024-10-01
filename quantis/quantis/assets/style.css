@@ -10,6 +10,7 @@
 
 :root {
     --color-primary: #06826a;
+    --color-primary-dimmed: #698680;
     --color-secondary: #3a1771;
     --color-primary-light: #24c1a4;
     --color-secondary-light: #4b44c5;
@@ -116,9 +117,18 @@ button {
     transition: background-color 0.2s ease-in;
 }
 
+button.disabled {
+    background-color: var(--color-primary-dimmed);
+}
+
 button:hover {
     background-color: var(--color-primary-light);
     cursor: pointer;
+}
+
+button.disabled:hover {
+    background-color: var(--color-primary-dimmed);
+    cursor: default;
 }
 
 button.rm_button:hover {
@@ -155,11 +165,20 @@ button.exec_button:hover {
 button.start_button {
     background-color: var(--color-secondary);
     font-size: var(--large-font);
+
+    &:disabled {
+        background-color: var(--color-primary-dimmed);
+    }
 }
 
 button.start_button:hover {
     background-color: var(--color-primary);
     cursor: pointer;
+
+    &:disabled {
+        background-color: var(--color-primary-dimmed);
+        cursor: default;
+    }
 }
 
 button.upload_button {

@@ -1,4 +1,10 @@
-"""Fancy Dash output for a collection of scavager output files"""
+"""Fancy Dash output for a collection of scavager output files
+
+used as a basis for Quantis future layout
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 
 
 import dash_bio

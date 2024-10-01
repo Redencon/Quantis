@@ -18,7 +18,11 @@ Some steps are optional for some tools.
 Others are optional depending on set parameters.
 
 Functions are separated to make it easier to construct pipelines without
-repeating code and multiple confusing if-else statements."""
+repeating code and multiple confusing if-else statements.
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 
 import pandas as pd
 import numpy as np
@@ -31,6 +35,7 @@ from .knn_imputation import knn_impute
 from .df_prep import load_from_lists
 
 from typing import TypedDict, NamedTuple, Literal
+import webbrowser
 
 class DEProtein(TypedDict):
     """DE protein data entry."""
@@ -109,8 +114,10 @@ def load_data_diffacto(file: str) -> pd.DataFrame:
     Similar to DirectMS1Quant, but without already calculated DE proteins.
     """
     data = pd.read_csv(file, sep='\t')
+    s2 = ('s2' if 's2' in data.columns else 'S2')
+    s1 = ('s1' if 's1' in data.columns else 'S1')
     data['dbname'] = data['Protein']
-    data['FC'] = np.log2(data['S2']/data['S1'])
+    data['FC'] = np.log2(data[s2]/data[s1])
     data['p-value'] = data["P(PECA)"]
     return data[['dbname', 'FC', 'p-value']]
 
@@ -120,15 +127,15 @@ def impute_missing_values(ogdf: OneGroupDF, method: str) -> pd.DataFrame:
     This step is required for Scavager and MaxQuant.
     Imputation method should be specified.
     """
+    data = ogdf.data[ogdf.NSAF_cols+["dbname"]].map(lambda v: v if v != 0 else None)
     if method == "Drop":
-        data = ogdf.data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
+        data = data.dropna(subset=ogdf.NSAF_cols).copy(deep=True)
     elif method == "Min":
-        data = ogdf.data
         for col in ogdf.NSAF_cols:
             min_val = ogdf.data[col].min()
             data[col] = data[col].fillna(min_val)
     else:
-        data_NSAF = ogdf.data.set_index('dbname')[ogdf.NSAF_cols]
+        data_NSAF = data.set_index('dbname')[ogdf.NSAF_cols]
         data_NSAF = knn_impute(data_NSAF)
         data = data_NSAF.reset_index().merge(ogdf.data[['dbname', 'description']], on='dbname', how='left')
     return data
@@ -141,13 +148,18 @@ def calculate_fold_change_p_value(tgdf: TwoGroupDF) -> pd.DataFrame:
     """
     data = tgdf.data
     data['FC'] = np.log2(data[tgdf.A_cols].mean(axis=1) / data[tgdf.K_cols].mean(axis=1))
-    data['p-value'] =  data.apply(
-        lambda row: ttest_ind(
-            [row[column] for column in tgdf.K_cols],
-            [row[column] for column in tgdf.A_cols]
-        ).pvalue,  # type: ignore
-        axis=1
-        )
+    def calc_pv(row):
+        vals_k = [row[column] for column in tgdf.K_cols]
+        vals_a = [row[column] for column in tgdf.A_cols]
+        
+        if len(set(vals_a)) == 1 or len(set(vals_k)) == 1:
+            return 1
+        v = ttest_ind(vals_a, vals_k).pvalue  # type: ignore
+        if v == 0:
+            print(vals_k, vals_a)
+            raise RuntimeError
+        return v
+    data['p-value'] = data.apply(calc_pv, axis=1)
     return data
 
 
@@ -235,13 +247,17 @@ def build_volcano_plot(
         dwt.data, x='FC', y='logFDR', color='regulation',
         labels={'regulation': 'Regulation', 'FC': 'Fold Change', 'logFDR': '-log10(FDR)'},
         color_discrete_map=color_scheme, height=750, title='Volcano Plot', opacity=0.8,
-        range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}
+        range_x=[-fc_max*1.1, fc_max*1.1], hover_data={'dbname': True}, custom_data=["dbname"]
     )
     vp.update_layout(
         title_font_family="Montserrat",
-        font_family="Montserrat"
+        font_family="Montserrat",
     )
     vp.add_hline(y=dwt.thresholds.p_value, line_dash="dash", line_color="gray")
     vp.add_vline(x=dwt.thresholds.up_fc, line_dash="dash", line_color="gray")
     vp.add_vline(x=dwt.thresholds.down_fc, line_dash="dash", line_color="gray")
     return vp
+
+def open_protein_in_uniprot(uniprot_id: str) -> None:
+    url = "https://www.uniprot.org/uniprot/"+uniprot_id
+    webbrowser.open(url)
