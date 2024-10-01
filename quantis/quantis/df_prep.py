@@ -1,4 +1,8 @@
-"""Functions responsible for loading or prepearing data for analysis."""
+"""Functions responsible for loading or prepearing data for analysis.
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 
 
 import os

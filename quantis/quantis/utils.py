@@ -18,7 +18,11 @@ Some steps are optional for some tools.
 Others are optional depending on set parameters.
 
 Functions are separated to make it easier to construct pipelines without
-repeating code and multiple confusing if-else statements."""
+repeating code and multiple confusing if-else statements.
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 
 import pandas as pd
 import numpy as np

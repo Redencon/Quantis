@@ -1,4 +1,8 @@
-"""Function to request svg from STRING"""
+"""Function to request svg from STRING
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
 import requests as rqt
 import base64
 import pandas as pd

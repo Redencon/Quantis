@@ -1,3 +1,9 @@
+"""Dialog functions for selecting files
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
+
 import webview
 
 def open_tsv_files_dialog(window: webview.Window, multiple: bool = False):

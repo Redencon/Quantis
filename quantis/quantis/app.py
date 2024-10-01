@@ -1,3 +1,9 @@
+"""The Quantis app layout and Dash callbacks
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
+"""
+
 # from . import log_setup
 from dash import Dash, dcc, callback, Input, Output, State, html, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc

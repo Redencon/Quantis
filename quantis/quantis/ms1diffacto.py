@@ -2,6 +2,9 @@
 Compiling data for diffacto run, running diffacto
 
 Functions used by ms1+diffacto pipeline
+
+Copyright 2024 Daniil Pomogaev
+SPDX-License-Identifier: Apache-2.0
 """
 import pandas as pd
 from subprocess import run
