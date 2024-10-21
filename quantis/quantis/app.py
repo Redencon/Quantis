@@ -163,7 +163,8 @@ def disable_bonferroni(value):
         {"label": "Bonferroni", "value": "bonferroni"},
         {"label": "Holm", "value": "holm"},
         {"label": "Benjamini-Hochberg", "value": "fdr_bh"},
-        {"label": "Simes-Hochberg", "value": "sh"}
+        {"label": "Simes-Hochberg", "value": "sh"},
+        {"label": "None", "value": "none"}
     ]
     if value in ("dynamic", "ms1"):
         correction_options[0]["disabled"] = True
