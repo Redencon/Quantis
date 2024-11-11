@@ -52,7 +52,10 @@ def resource_path(relative_path):
 
 def reinstantiate():
     global app, window
-    app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
+    app = Dash(
+        "Quantis", title="Quantis", assets_folder=str(resource_path("assets")),
+        external_stylesheets=[str(resource_path("assets/css/dragula.css")), dbc.themes.BOOTSTRAP]
+    )
     window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
 
 
