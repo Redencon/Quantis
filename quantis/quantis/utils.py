@@ -170,7 +170,9 @@ def apply_mtc_and_log(dft: DFwThresholds, mtc_method: MTC_method,) -> DFwThresho
     """
     data = dft.data.copy()
     if mtc_method == "none":
-        return dft
+        data["fdr"] = data["p-value"]
+        data["logFDR"] = -np.log10(data["fdr"])
+        return DFwThresholds(data, dft.thresholds)
     if mtc_method == "bonferroni":
         ths = dft.thresholds
         new_thresholds = Thresholds(ths.up_fc, ths.down_fc, ths.p_value + np.log10(len(dft.data)))

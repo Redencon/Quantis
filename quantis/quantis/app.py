@@ -18,7 +18,7 @@ from traceback import format_exc
 
 import argparse as argp
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import webview
 import webbrowser
@@ -49,11 +49,15 @@ def resource_path(relative_path):
 
 
 
-# app = Dash("Quantis", external_stylesheets=["style.css"])
-app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
-# du.configure_upload(app, FILES_PATH, use_upload_id=False)
 
-window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
+def reinstantiate():
+    global app, window
+    app = Dash(
+        "Quantis", title="Quantis", assets_folder=str(resource_path("assets")),
+        external_stylesheets=[str(resource_path("assets/css/dragula.css")), dbc.themes.BOOTSTRAP]
+    )
+    window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
+
 
 # ======== Callbacks ========
 
@@ -163,7 +167,8 @@ def disable_bonferroni(value):
         {"label": "Bonferroni", "value": "bonferroni"},
         {"label": "Holm", "value": "holm"},
         {"label": "Benjamini-Hochberg", "value": "fdr_bh"},
-        {"label": "Simes-Hochberg", "value": "sh"}
+        {"label": "Simes-Hochberg", "value": "sh"},
+        {"label": "None", "value": "none"}
     ]
     if value in ("dynamic", "ms1"):
         correction_options[0]["disabled"] = True
@@ -1044,6 +1049,7 @@ def launch_from_cli():
     parser.add_argument("-s2", help="test files input", nargs='+')
     parser.add_argument("--web", help="launch as browser app", action="store_true")
     args = parser.parse_args()
+    reinstantiate()
     set_layout(app, args)
     if args.web:
         app.run(debug=True)
@@ -1056,6 +1062,7 @@ def launch_import(s0="", s1="", s2="", fmt="Scavager"):
     args = argp.Namespace(
         **args_dict
     )
+    reinstantiate()
     set_layout(app, args)
     start_webview()
 
