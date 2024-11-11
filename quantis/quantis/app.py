@@ -18,7 +18,7 @@ from traceback import format_exc
 
 import argparse as argp
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import webview
 import webbrowser
@@ -49,11 +49,12 @@ def resource_path(relative_path):
 
 
 
-# app = Dash("Quantis", external_stylesheets=["style.css"])
-app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
-# du.configure_upload(app, FILES_PATH, use_upload_id=False)
 
-window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
+def reinstantiate():
+    global app, window
+    app = Dash("Quantis", title="Quantis", assets_folder=str(resource_path("assets")))
+    window = webview.create_window(app.title, app.server, width=1200, height=800)  # type: ignore
+
 
 # ======== Callbacks ========
 
@@ -1057,6 +1058,7 @@ def launch_import(s0="", s1="", s2="", fmt="Scavager"):
     args = argp.Namespace(
         **args_dict
     )
+    reinstantiate()
     set_layout(app, args)
     start_webview()
 
