@@ -1049,6 +1049,7 @@ def launch_from_cli():
     parser.add_argument("-s2", help="test files input", nargs='+')
     parser.add_argument("--web", help="launch as browser app", action="store_true")
     args = parser.parse_args()
+    reinstantiate()
     set_layout(app, args)
     if args.web:
         app.run(debug=True)
